@@ -29,7 +29,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::from_bytes(ICON_OFF)?)
+        .icon(Image::from_bytes(ICON_ON)?)
         .icon_as_template(true)
         .tooltip("Hitch")
         .menu(&menu)
@@ -67,7 +67,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// The icon is solid when Claude is set to run on Oxen and faded otherwise.
+/// The icon is always the full-strength Oxen mark. It gains a slash when Oxen is set up
+/// but Claude is not using it.
 pub fn reflect(app: &AppHandle, status: &Status) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
@@ -77,7 +78,7 @@ pub fn reflect(app: &AppHandle, status: &Status) {
         Link::Connected => (ICON_ON, "Hitch — Claude is on Oxen"),
         Link::Paused => (ICON_OFF, "Hitch — Claude is using Anthropic"),
         Link::Drifted => (ICON_OFF, "Hitch — Claude's setup changed"),
-        Link::NotConfigured => (ICON_OFF, "Hitch — not set up yet"),
+        Link::NotConfigured => (ICON_ON, "Hitch — not set up yet"),
     };
     if let Ok(image) = Image::from_bytes(icon) {
         let _ = tray.set_icon(Some(image));

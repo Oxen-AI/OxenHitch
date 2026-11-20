@@ -103,9 +103,8 @@ should never have to know the gateway path. Requested by Greg.
 ## 2026-11-19 — Use the Oxen "x" mark everywhere
 
 The app icon, the in-app mark and the menu-bar glyph all come from Oxen's own logo files, copied
-into `design/oxen-x-black.svg` and `design/oxen-x-white.svg`. `design/icon.svg`, `design/tray.svg`
-and `design/tray-off.svg` are generated from them; the PNG/ICNS files in `src-tauri/icons/` are
-rendered from those. This replaced an invented placeholder glyph. Requested by Greg.
+into `design/oxen-x-black.svg` and `design/oxen-x-white.svg`. `design/icon.svg` and `design/tray.svg` are generated from them, and `design/render-icons.sh`
+renders the PNG/ICNS files in `src-tauri/icons/` from those. This replaced an invented placeholder glyph. Requested by Greg.
 
 ## 2026-11-19 — Restart means quit, wait, open, wait
 
@@ -124,3 +123,9 @@ time the popover opened. Now the key is read once and held in memory for the lif
 (`Remembered`), and a refused read is not cached so the next attempt can ask again. Sandbox mode
 stores its throwaway key in an owner-only file instead (`FileSecrets`). A signed release build has
 a stable identity, so users should see at most one prompt, if any. Reported by Greg.
+
+## 2026-11-19 — The menu-bar icon is always full strength
+
+The "not connected" icon used to be the mark at 42% opacity. Next to other menu-bar icons it looked
+broken rather than informative. The mark is now solid and larger (18pt tall) in every state, and a
+slash through it means Oxen is set up but switched off or no longer applied. Requested by Greg.
