@@ -254,3 +254,13 @@ signed. Decided by Greg.
   The private key and signing request were made locally and the request uploaded by hand.
 - The app declares the Apple-events entitlement and a usage sentence, because restarting Claude
   sends it a quit request and a hardened-runtime app must be allowed to do that.
+
+## 2026-11-19 — The README covers Claude Code and Developer Mode
+
+- Hitch does not configure the Claude Code command-line tool. It keeps its own settings, and two
+  environment variables are all it needs, so the README documents those instead. Tested with
+  Claude Code 2.1.329 against a local Oxen: a Claude model and a non-Claude model both answered.
+- Developer Mode stays unnecessary for Hitch. The README documents it as the by-hand alternative
+  and as a way to inspect what Hitch wrote. Its screenshots come from Stanford University IT's
+  public guide, cropped to Claude's own menus, with credit. Replace them with our own before the
+  repository goes public.
