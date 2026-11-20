@@ -177,10 +177,13 @@ How Claude Desktop (6.6395.1) builds its model picker, read from the app:
   unless `modelDiscoveryEnabled` is set explicitly.
 
 So Hitch writes `"modelDiscoveryEnabled": true` whenever it writes a model list. The other half is
-on the gateway: `GET /v1/models` must return an entry whose `id` equals the configured name
-(`claude-via-{UUID}`, not the plain model name) with a `description`. Oxen's models already have a
-short `summary` that would suit. Until the gateway does that, non-Claude models show no subtitle.
-This is from reading the code; it has not been seen working end to end.
+in OxenHub (added 2026-11-19, PR #2077): `GET /api/ai/v1/models` lists each non-Anthropic model a
+second time under `claude-via-<uuid>`, with the model's `summary` as its `description`. Models
+without a summary (fine-tunes, mostly) get no subtitle. Anthropic's own models are listed once and
+keep Claude's built-in text.
+
+The Hub side is tested and was checked against a running server. Whether Claude Desktop then shows
+the subtitles has not been seen yet; that rests on reading its code.
 
 ## 2026-11-19 — Sync Claude's model list automatically
 
