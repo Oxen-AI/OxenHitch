@@ -264,3 +264,16 @@ signed. Decided by Greg.
   and as a way to inspect what Hitch wrote. Its screenshots come from Stanford University IT's
   public guide, cropped to Claude's own menus, with credit. Replace them with our own before the
   repository goes public.
+
+## 2026-11-19 — The popover opens on every Space and over full-screen apps
+
+- A user reported that clicking the menu-bar icon did nothing until Hitch was killed and
+  restarted. The popover is an ordinary window, and macOS keeps a window on the Space it was
+  first shown on. Clicked from another Space, or from a full-screen app, it opened back on its
+  original Space where nobody could see it; the next click then hid it. Getting an API key in a
+  full-screen browser is enough to hit this on first run.
+- The window now joins all Spaces and may sit over full-screen apps (`CanJoinAllSpaces`,
+  `FullScreenAuxiliary`). Tauri only exposes the first of those, so this is set on the
+  `NSWindow` directly.
+- This cause was found by reading the code, not reproduced. Treat it as fixed only once the
+  reporter confirms.

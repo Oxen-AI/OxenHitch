@@ -53,6 +53,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     if let Some(window) = app.get_webview_window(WINDOW) {
+        follow_the_menu_bar(&window);
         let popover = window.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::Focused(false) = event {
@@ -66,6 +67,33 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     }
     Ok(())
 }
+
+/// Lets the popover open wherever the menu bar is: on every desktop Space and over a
+/// full-screen app.
+///
+/// A window normally belongs to the Space it was first shown on. Without this, clicking
+/// the icon from another Space or from a full-screen app opened the popover back on its
+/// original Space, where it could not be seen, and the next click then hid it again. It
+/// looked as if the icon did nothing until Hitch was restarted.
+#[cfg(target_os = "macos")]
+fn follow_the_menu_bar(window: &WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+
+    let Ok(pointer) = window.ns_window() else {
+        return;
+    };
+    // SAFETY: Tauri hands out the live NSWindow behind this window, and this runs on the
+    // main thread during setup, which is where AppKit must be called from.
+    let ns_window = unsafe { &*pointer.cast::<NSWindow>() };
+    ns_window.setCollectionBehavior(
+        NSWindowCollectionBehavior::CanJoinAllSpaces
+            | NSWindowCollectionBehavior::FullScreenAuxiliary
+            | NSWindowCollectionBehavior::IgnoresCycle,
+    );
+}
+
+#[cfg(not(target_os = "macos"))]
+fn follow_the_menu_bar(_window: &WebviewWindow) {}
 
 /// The icon is always the full-strength Oxen mark. It gains a slash when Oxen is set up
 /// but Claude is not using it.
