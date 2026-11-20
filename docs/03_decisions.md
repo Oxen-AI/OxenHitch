@@ -223,3 +223,13 @@ signed. Decided by Greg.
   and give the one command needed to open the app.
 - The content-security policy now allows Tauri's own IPC channel (`ipc:`). Without that the app
   silently fell back to a slower message-passing path.
+
+## 2026-11-19 — Host is one tap from the home screen
+
+- The home screen has a **Host** row next to **API key**. Both open the Connection screen with
+  that field focused. Before, the host could only be changed behind the row labelled "API key",
+  which gave no hint that it was there.
+- The line under the headline no longer repeats the host, since the row shows it.
+- Changing the host in Connection says when a key is already saved for the new host, the same
+  way first run does, so moving between hosts (for example hub.oxen.ai and a local Oxen) needs
+  nothing pasted.

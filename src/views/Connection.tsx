@@ -2,11 +2,15 @@ import { useState } from "react";
 
 import { hostLabel, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
+import { useSavedKey } from "../lib/useSavedKey";
 import { Check, Field, Notice, Spinner, SubHeader } from "../components/ui";
 
+/** Which field a row on the home screen leads to. */
+export type ConnectionFocus = "key" | "host";
+
 /** Replace the key, change the host, test it, or take Oxen out of Claude. */
-export function Connection(props: { api: Api; status: Status; onDone: () => void }) {
-  const { api, status, onDone } = props;
+export function Connection(props: { api: Api; status: Status; focus: ConnectionFocus; onDone: () => void }) {
+  const { api, status, focus, onDone } = props;
   const [key, setKey] = useState("");
   const currentHost = hostLabel(status.baseUrl);
   const [host, setHost] = useState(currentHost);
@@ -16,6 +20,8 @@ export function Connection(props: { api: Api; status: Status; onDone: () => void
   const newKey = key.trim();
   const newHost = host.trim() !== currentHost ? host.trim() : "";
   const dirty = newKey !== "" || newHost !== "";
+  // Each host keeps its own key, so moving to one used before needs nothing pasted.
+  const saved = useSavedKey(api, newHost);
 
   const save = useAction(async () => {
     await api.connect({ apiKey: newKey || undefined, baseUrl: newHost || undefined });
@@ -39,6 +45,7 @@ export function Connection(props: { api: Api; status: Status; onDone: () => void
           label="Oxen API key"
           showLabel
           secret
+          autoFocus={focus === "key"}
           placeholder={status.keyHint ? `••••${status.keyHint} — paste a new key to replace it` : "Oxen API key"}
           value={key}
           onChange={setKey}
@@ -48,10 +55,14 @@ export function Connection(props: { api: Api; status: Status; onDone: () => void
           label="Host"
           showLabel
           placeholder="hub.oxen.ai"
+          autoFocus={focus === "host"}
           value={host}
           onChange={setHost}
           onEnter={submit}
         />
+        {saved && newKey === "" && (
+          <Notice tone="info">{`Found your Oxen key ending in ${saved} for ${newHost}.`}</Notice>
+        )}
         {save.error && <Notice>{save.error}</Notice>}
         <button type="button" className="button primary" disabled={!dirty || save.busy} onClick={submit}>
           {save.busy ? (

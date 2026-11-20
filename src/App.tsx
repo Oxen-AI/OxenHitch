@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Api, Check, Status } from "./lib/api";
-import { Connection } from "./views/Connection";
+import { Connection, type ConnectionFocus } from "./views/Connection";
 import { Home } from "./views/Home";
 import { Models } from "./views/Models";
 import { NoClaude, Welcome } from "./views/Welcome";
@@ -15,6 +15,7 @@ export default function App({ api, initialView = "home" }: { api: Api; initialVi
   const [status, setStatus] = useState<Status | null>(null);
   const [gateway, setGateway] = useState<Gateway>({ state: "checking" });
   const [view, setView] = useState<View>(initialView);
+  const [focus, setFocus] = useState<ConnectionFocus>("key");
   const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function App({ api, initialView = "home" }: { api: Api; initialVi
 
   return (
     <div className="frame" ref={frame}>
-      {status && <Screen key={screenKey(status, view)} {...{ api, status, gateway, view, setView, checkGateway }} />}
+      {status && <Screen key={screenKey(status, view)} {...{ api, status, gateway, view, setView, focus, setFocus, checkGateway }} />}
     </div>
   );
 }
@@ -84,6 +85,8 @@ function Screen(props: {
   gateway: Gateway;
   view: View;
   setView: (view: View) => void;
+  focus: ConnectionFocus;
+  setFocus: (focus: ConnectionFocus) => void;
   checkGateway: () => Promise<void>;
 }) {
   const { api, status, gateway, view, setView } = props;
@@ -96,7 +99,7 @@ function Screen(props: {
     return <Models api={api} status={status} gateway={gateway} onRefresh={props.checkGateway} onDone={home} />;
   }
   if (view === "connection") {
-    return <Connection api={api} status={status} onDone={home} />;
+    return <Connection api={api} status={status} focus={props.focus} onDone={home} />;
   }
   return (
     <Home
@@ -104,7 +107,10 @@ function Screen(props: {
       status={status}
       gateway={gateway}
       onRetry={props.checkGateway}
-      onOpen={setView}
+      onOpen={(next, field) => {
+        if (field) props.setFocus(field);
+        setView(next);
+      }}
     />
   );
 }

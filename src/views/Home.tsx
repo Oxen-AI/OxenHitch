@@ -4,13 +4,13 @@ import pkg from "../../package.json";
 import type { Gateway } from "../App";
 import { hostOf, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
+import type { ConnectionFocus } from "./Connection";
 import { Bubble, Chevron, Notice, OxenMark, Spinner, Switch } from "../components/ui";
 
 type Tone = "on" | "pending" | "off" | "trouble";
 
 /** The one sentence that says where things stand, and the one thing to do about it. */
 function headline(status: Status, gateway: Gateway): { tone: Tone; title: string; detail: string } {
-  const host = hostOf(status.baseUrl);
   if (status.link === "drifted") {
     return {
       tone: "off",
@@ -49,9 +49,10 @@ function headline(status: Status, gateway: Gateway): { tone: Tone; title: string
       detail: "There is a problem reaching Oxen. See below.",
     };
   }
+  // The host has its own row below, so it is not repeated here.
   return status.claudeRunning
-    ? { tone: "on", title: "Claude is running on Oxen", detail: host }
-    : { tone: "on", title: "Claude is set to use Oxen", detail: host };
+    ? { tone: "on", title: "Claude is running on Oxen", detail: "Your chats go through Oxen." }
+    : { tone: "on", title: "Claude is set to use Oxen", detail: "Open Claude to start chatting." };
 }
 
 export function Home(props: {
@@ -59,7 +60,7 @@ export function Home(props: {
   status: Status;
   gateway: Gateway;
   onRetry: () => void;
-  onOpen: (view: "models" | "connection") => void;
+  onOpen: (view: "models" | "connection", field?: ConnectionFocus) => void;
 }) {
   const { api, status, gateway } = props;
   const { tone, title, detail } = headline(status, gateway);
@@ -129,7 +130,12 @@ export function Home(props: {
           <span className="row-value">{modelSummary(status, gateway)}</span>
           <Chevron />
         </button>
-        <button type="button" className="row row-link" onClick={() => props.onOpen("connection")}>
+        <button type="button" className="row row-link" onClick={() => props.onOpen("connection", "host")}>
+          <span className="row-label">Host</span>
+          <span className="row-value">{hostOf(status.baseUrl)}</span>
+          <Chevron />
+        </button>
+        <button type="button" className="row row-link" onClick={() => props.onOpen("connection", "key")}>
           <span className="row-label">API key</span>
           <span className="row-value mono">{status.keyHint ? `••••${status.keyHint}` : "Not set"}</span>
           <Chevron />

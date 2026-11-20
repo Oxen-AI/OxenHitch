@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { hostLabel, links, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
+import { useSavedKey } from "../lib/useSavedKey";
 import { Arrow, Field, Notice, OxenMark, Spinner } from "../components/ui";
 import { RestartPrompt } from "./Home";
 
@@ -14,20 +15,7 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
 
   // A key the Oxen CLI (or an earlier Hitch) saved for this host means nothing to paste.
   const lookupHost = custom ? host.trim() : currentHost;
-  const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => {
-    let current = true;
-    setSaved(null);
-    if (lookupHost) {
-      api.savedKey(lookupHost).then(
-        (hint) => current && setSaved(hint),
-        () => undefined,
-      );
-    }
-    return () => {
-      current = false;
-    };
-  }, [api, lookupHost]);
+  const saved = useSavedKey(api, lookupHost);
 
   const connect = useAction(() =>
     api.connect({

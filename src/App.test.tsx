@@ -341,6 +341,35 @@ describe("connection settings", () => {
     expect(await screen.findByText("localhost:3001")).toBeVisible();
   });
 
+  it("opens on the key from the API key row", async () => {
+    await openConnection();
+    expect(screen.getByLabelText("Oxen API key")).toHaveFocus();
+  });
+
+  it("opens on the host from a Host row on the home screen", async () => {
+    const { user } = open({ status: connectedStatus });
+    const row = await screen.findByRole("button", { name: /^Host/ });
+    expect(within(row).getByText("hub.oxen.ai")).toBeVisible();
+
+    await user.click(row);
+    expect(await screen.findByRole("heading", { name: "Connection" })).toBeVisible();
+    expect(screen.getByLabelText("Host")).toHaveFocus();
+  });
+
+  it("says which saved key a different host will use", async () => {
+    const view = open({ status: connectedStatus, savedKeys: { "localhost:3001": "4321" } });
+    await view.user.click(await screen.findByRole("button", { name: /^Host/ }));
+    const host = await screen.findByLabelText("Host");
+    expect(screen.queryByText(/Found your Oxen key/)).not.toBeInTheDocument();
+
+    await view.user.clear(host);
+    await view.user.type(host, "localhost:3001");
+    expect(await screen.findByText("Found your Oxen key ending in 4321 for localhost:3001.")).toBeVisible();
+
+    await view.user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("••••4321")).toBeVisible();
+  });
+
   it("sends a test message", async () => {
     const { user } = await openConnection();
     await user.click(screen.getByRole("button", { name: "Send a test message" }));
