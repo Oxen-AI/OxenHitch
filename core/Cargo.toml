@@ -1,6 +1,6 @@
 [package]
 name = "hitch-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Everything Hitch does that is not UI: Claude Desktop config, gateway checks, secrets."
 
