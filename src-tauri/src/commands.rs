@@ -144,6 +144,13 @@ pub async fn test_message(hitch: Shared<'_>) -> CommandResult<String> {
     Ok(model)
 }
 
+/// The last characters of the key already saved for a host, if there is one, so the UI
+/// can offer it instead of asking for a paste.
+#[tauri::command]
+pub fn saved_key(hitch: Shared, host: String) -> Option<String> {
+    hitch.saved_key_hint(&host)
+}
+
 #[tauri::command]
 pub fn autostart(app: AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)

@@ -1,275 +1,260 @@
 //! Where Hitch keeps the user's Oxen API key.
 //!
 //! Claude seals its own copy of the key so it cannot be read back. Hitch needs the key to
-//! check the connection and to rewrite Claude's profile, so it keeps one in the OS keychain.
+//! check the connection, list models, and rewrite Claude's profile. It keeps it where the
+//! Oxen CLI already does: `~/.config/oxen/auth_config.toml`, one token per host. Someone
+//! who has used the CLI never has to paste a key, and a key pasted into Hitch works in the
+//! CLI too. No keychain means no permission prompts.
 
+use std::collections::HashMap;
+use std::fs;
+use std::io::{ErrorKind, Write};
+use std::path::PathBuf;
 use std::sync::Mutex;
+
+use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
 use crate::{Error, Result};
 
+/// Keys are stored per host (`hub.oxen.ai`, `localhost:3001`), the way the Oxen CLI does.
 pub trait SecretStore: Send + Sync {
-    fn get(&self) -> Result<Option<String>>;
-    fn set(&self, key: &str) -> Result<()>;
-    fn delete(&self) -> Result<()>;
+    fn get(&self, host: &str) -> Result<Option<String>>;
+    fn set(&self, host: &str, key: &str) -> Result<()>;
 }
 
-/// The OS keychain: Keychain on macOS, Credential Manager on Windows.
-pub struct Keychain {
-    service: String,
+/// The Oxen CLI's auth file.
+pub struct OxenConfig {
+    path: PathBuf,
 }
 
-const ACCOUNT: &str = "oxen-api-key";
-
-impl Keychain {
-    pub fn new(service: impl Into<String>) -> Self {
-        Self {
-            service: service.into(),
-        }
-    }
-
-    fn entry(&self) -> Result<keyring::Entry> {
-        keyring::Entry::new(&self.service, ACCOUNT).map_err(keychain_error)
-    }
-}
-
-impl SecretStore for Keychain {
-    fn get(&self) -> Result<Option<String>> {
-        match self.entry()?.get_password() {
-            Ok(key) => Ok(Some(key)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(err) => Err(keychain_error(err)),
-        }
-    }
-
-    fn set(&self, key: &str) -> Result<()> {
-        self.entry()?.set_password(key).map_err(keychain_error)
-    }
-
-    fn delete(&self) -> Result<()> {
-        match self.entry()?.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(err) => Err(keychain_error(err)),
-        }
-    }
-}
-
-fn keychain_error(err: keyring::Error) -> Error {
-    Error::Keychain(err.to_string())
-}
-
-/// Keeps the key in memory only. For tests.
-#[derive(Default)]
-pub struct MemorySecrets(Mutex<Option<String>>);
-
-impl SecretStore for MemorySecrets {
-    fn get(&self) -> Result<Option<String>> {
-        Ok(self.0.lock().unwrap().clone())
-    }
-
-    fn set(&self, key: &str) -> Result<()> {
-        *self.0.lock().unwrap() = Some(key.into());
-        Ok(())
-    }
-
-    fn delete(&self) -> Result<()> {
-        *self.0.lock().unwrap() = None;
-        Ok(())
-    }
-}
-
-/// Remembers the key after the first read, so the OS keychain is asked at most once
-/// per launch. Each keychain read can put a permission prompt in front of the user.
-pub struct Remembered<S> {
-    inner: S,
-    known: Mutex<Option<Option<String>>>,
-}
-
-impl<S: SecretStore> Remembered<S> {
-    pub fn new(inner: S) -> Self {
-        Self {
-            inner,
-            known: Mutex::new(None),
-        }
-    }
-}
-
-impl<S: SecretStore> SecretStore for Remembered<S> {
-    fn get(&self) -> Result<Option<String>> {
-        let mut known = self.known.lock().unwrap();
-        if let Some(key) = known.as_ref() {
-            return Ok(key.clone());
-        }
-        // A failed read is not remembered: the user may have denied the prompt by
-        // mistake, and the next attempt should be allowed to ask again.
-        let key = self.inner.get()?;
-        *known = Some(key.clone());
-        Ok(key)
-    }
-
-    fn set(&self, key: &str) -> Result<()> {
-        self.inner.set(key)?;
-        *self.known.lock().unwrap() = Some(Some(key.into()));
-        Ok(())
-    }
-
-    fn delete(&self) -> Result<()> {
-        self.inner.delete()?;
-        *self.known.lock().unwrap() = Some(None);
-        Ok(())
-    }
-}
-
-/// Keeps the key in an owner-only file. For sandbox mode, where a throwaway key should
-/// not touch the real keychain or raise its prompts.
-pub struct FileSecrets {
-    path: std::path::PathBuf,
-}
-
-impl FileSecrets {
-    pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
+impl OxenConfig {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
+
+    /// The file the Oxen CLI reads on this machine.
+    pub fn for_user() -> Self {
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."));
+        Self::new(home.join(".config/oxen/auth_config.toml"))
+    }
 }
 
-impl SecretStore for FileSecrets {
-    fn get(&self) -> Result<Option<String>> {
-        match std::fs::read_to_string(&self.path) {
-            Ok(key) => Ok(Some(key).filter(|key| !key.is_empty())),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(err.into()),
-        }
+const HOSTS: &str = "host_configs";
+const HOST: &str = "host";
+const TOKEN: &str = "auth_token";
+/// The host the CLI assumes when none is named; written when Hitch creates the file.
+const CLI_DEFAULT_HOST: &str = "hub.oxen.ai";
+
+impl SecretStore for OxenConfig {
+    fn get(&self, host: &str) -> Result<Option<String>> {
+        let Ok(text) = fs::read_to_string(&self.path) else {
+            return Ok(None);
+        };
+        let Ok(document) = text.parse::<DocumentMut>() else {
+            return Ok(None);
+        };
+        let token = document
+            .get(HOSTS)
+            .and_then(Item::as_array_of_tables)
+            .and_then(|hosts| hosts.iter().find(|entry| names(entry, host)))
+            .and_then(|entry| entry.get(TOKEN))
+            .and_then(Item::as_str)
+            .filter(|token| !token.is_empty())
+            .map(String::from);
+        Ok(token)
     }
 
-    fn set(&self, key: &str) -> Result<()> {
-        use std::io::Write;
-        if let Some(dir) = self.path.parent() {
-            std::fs::create_dir_all(dir)?;
+    fn set(&self, host: &str, key: &str) -> Result<()> {
+        let mut document = match fs::read_to_string(&self.path) {
+            // Editing in place keeps the CLI's other hosts, its default host, and any
+            // comments exactly as they were.
+            Ok(text) => text.parse::<DocumentMut>().map_err(|_| {
+                Error::invalid(format!(
+                    "Your Oxen settings file could not be read, so the key was not saved: {}",
+                    self.path.display()
+                ))
+            })?,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                let mut fresh = DocumentMut::new();
+                fresh["default_host"] = value(CLI_DEFAULT_HOST);
+                fresh
+            }
+            Err(err) => return Err(err.into()),
+        };
+
+        let hosts = document
+            .entry(HOSTS)
+            .or_insert(Item::ArrayOfTables(ArrayOfTables::new()))
+            .as_array_of_tables_mut()
+            .ok_or_else(|| Error::invalid("Your Oxen settings file has an unexpected layout."))?;
+        let existing = hosts.iter().position(|entry| names(entry, host));
+        match existing.and_then(|index| hosts.get_mut(index)) {
+            Some(entry) => entry[TOKEN] = value(key),
+            None => {
+                let mut entry = Table::new();
+                entry[HOST] = value(host);
+                entry[TOKEN] = value(key);
+                hosts.push(entry);
+            }
         }
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
+
+        self.write(&document.to_string())
+    }
+}
+
+impl OxenConfig {
+    /// Atomic, and owner-only: this file holds API keys.
+    fn write(&self, text: &str) -> Result<()> {
+        let dir = self.path.parent().expect("the auth file lives in a directory");
+        fs::create_dir_all(dir)?;
+        let temp = dir.join(format!(".hitch-{}.tmp", uuid::Uuid::new_v4()));
+        let written = (|| {
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            let mut file = options.open(&temp)?;
+            file.write_all(text.as_bytes())?;
+            file.sync_all()?;
+            fs::rename(&temp, &self.path)
+        })();
+        if written.is_err() {
+            let _ = fs::remove_file(&temp);
         }
-        options.open(&self.path)?.write_all(key.as_bytes())?;
+        Ok(written?)
+    }
+}
+
+fn names(entry: &Table, host: &str) -> bool {
+    entry.get(HOST).and_then(Item::as_str) == Some(host)
+}
+
+/// Keeps keys in memory only. For tests.
+#[derive(Default)]
+pub struct MemorySecrets(Mutex<HashMap<String, String>>);
+
+impl SecretStore for MemorySecrets {
+    fn get(&self, host: &str) -> Result<Option<String>> {
+        Ok(self.0.lock().unwrap().get(host).cloned())
+    }
+
+    fn set(&self, host: &str, key: &str) -> Result<()> {
+        self.0.lock().unwrap().insert(host.into(), key.into());
         Ok(())
-    }
-
-    fn delete(&self) -> Result<()> {
-        match std::fs::remove_file(&self.path) {
-            Err(err) if err.kind() != std::io::ErrorKind::NotFound => Err(err.into()),
-            _ => Ok(()),
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
 
-    /// A keychain that counts how often it is read, and can refuse.
-    #[derive(Default)]
-    struct Counting {
-        store: MemorySecrets,
-        reads: Arc<AtomicUsize>,
-        locked: bool,
-    }
+    const CLI_FILE: &str = r#"default_host = "hub.oxen.ai"
 
-    impl SecretStore for Counting {
-        fn get(&self) -> Result<Option<String>> {
-            self.reads.fetch_add(1, Ordering::SeqCst);
-            if self.locked {
-                return Err(Error::Keychain("denied".into()));
-            }
-            self.store.get()
-        }
-        fn set(&self, key: &str) -> Result<()> {
-            self.store.set(key)
-        }
-        fn delete(&self) -> Result<()> {
-            self.store.delete()
-        }
-    }
+[[host_configs]]
+host = "localhost:3001"
+auth_token = "local-token"
 
-    fn counted(initial: Option<&str>) -> (Remembered<Counting>, Arc<AtomicUsize>) {
-        let inner = Counting::default();
-        if let Some(key) = initial {
-            inner.store.set(key).unwrap();
-        }
-        let reads = inner.reads.clone();
-        (Remembered::new(inner), reads)
-    }
+[[host_configs]]
+host = "hub.oxen.ai"
+auth_token = "hub-token"
+"#;
 
-    #[test]
-    fn the_keychain_is_read_once_however_often_the_key_is_needed() {
-        let (secrets, reads) = counted(Some("k"));
-        for _ in 0..5 {
-            assert_eq!(secrets.get().unwrap().as_deref(), Some("k"));
-        }
-        assert_eq!(reads.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn an_empty_keychain_is_also_only_read_once() {
-        let (secrets, reads) = counted(None);
-        assert_eq!(secrets.get().unwrap(), None);
-        assert_eq!(secrets.get().unwrap(), None);
-        assert_eq!(reads.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn saving_a_key_means_it_never_has_to_be_read_back() {
-        let (secrets, reads) = counted(None);
-        secrets.set("new").unwrap();
-        assert_eq!(secrets.get().unwrap().as_deref(), Some("new"));
-        assert_eq!(reads.load(Ordering::SeqCst), 0);
-        assert_eq!(secrets.inner.store.get().unwrap().as_deref(), Some("new"));
-    }
-
-    #[test]
-    fn deleting_forgets_the_key_everywhere() {
-        let (secrets, reads) = counted(Some("k"));
-        secrets.get().unwrap();
-        secrets.delete().unwrap();
-        assert_eq!(secrets.get().unwrap(), None);
-        assert_eq!(secrets.inner.store.get().unwrap(), None);
-        assert_eq!(reads.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn a_refused_read_is_tried_again_next_time() {
-        let inner = Counting {
-            locked: true,
-            ..Default::default()
-        };
-        let reads = inner.reads.clone();
-        let secrets = Remembered::new(inner);
-        assert!(secrets.get().is_err());
-        assert!(secrets.get().is_err());
-        assert_eq!(reads.load(Ordering::SeqCst), 2, "a refusal must not be remembered");
-    }
-
-    #[test]
-    fn a_key_file_round_trips_and_is_private() {
+    fn store(contents: Option<&str>) -> (tempfile::TempDir, OxenConfig, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("nested/key");
-        let secrets = FileSecrets::new(&path);
-        assert_eq!(secrets.get().unwrap(), None);
+        let path = dir.path().join("oxen/auth_config.toml");
+        if let Some(contents) = contents {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, contents).unwrap();
+        }
+        (dir, OxenConfig::new(&path), path)
+    }
 
-        secrets.set("oxen-key").unwrap();
-        assert_eq!(secrets.get().unwrap().as_deref(), Some("oxen-key"));
+    #[test]
+    fn the_key_the_cli_saved_for_a_host_is_found() {
+        let (_dir, config, _) = store(Some(CLI_FILE));
+        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
+        assert_eq!(config.get("localhost:3001").unwrap().as_deref(), Some("local-token"));
+    }
+
+    #[test]
+    fn a_host_the_cli_has_never_used_has_no_key() {
+        let (_dir, config, _) = store(Some(CLI_FILE));
+        assert_eq!(config.get("staging.hub.oxen.ai").unwrap(), None);
+    }
+
+    #[test]
+    fn someone_who_never_used_the_cli_has_no_key() {
+        let (_dir, config, _) = store(None);
+        assert_eq!(config.get("hub.oxen.ai").unwrap(), None);
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_as_toml_has_no_key() {
+        let (_dir, config, _) = store(Some("not = [toml"));
+        assert_eq!(config.get("hub.oxen.ai").unwrap(), None);
+    }
+
+    #[test]
+    fn saving_a_key_replaces_only_that_hosts_token() {
+        let (_dir, config, path) = store(Some(CLI_FILE));
+
+        config.set("hub.oxen.ai", "new-hub-token").unwrap();
+
+        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("new-hub-token"));
+        assert_eq!(config.get("localhost:3001").unwrap().as_deref(), Some("local-token"));
+        let text = fs::read_to_string(path).unwrap();
+        assert!(text.contains(r#"default_host = "hub.oxen.ai""#));
+        assert_eq!(text.matches("[[host_configs]]").count(), 2, "no duplicate entry");
+    }
+
+    #[test]
+    fn saving_a_key_for_a_new_host_adds_it_beside_the_others() {
+        let (_dir, config, path) = store(Some(CLI_FILE));
+
+        config.set("dev.hub.oxen.ai", "dev-token").unwrap();
+
+        assert_eq!(config.get("dev.hub.oxen.ai").unwrap().as_deref(), Some("dev-token"));
+        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
+        assert_eq!(fs::read_to_string(path).unwrap().matches("[[host_configs]]").count(), 3);
+    }
+
+    #[test]
+    fn saving_a_key_creates_the_file_the_cli_expects() {
+        let (_dir, config, path) = store(None);
+
+        config.set("hub.oxen.ai", "first-token").unwrap();
+
+        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("first-token"));
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains(r#"default_host = "hub.oxen.ai""#));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600);
+            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
         }
+    }
 
-        secrets.delete().unwrap();
-        assert_eq!(secrets.get().unwrap(), None);
-        secrets.delete().unwrap();
+    #[test]
+    fn a_file_that_cannot_be_read_as_toml_is_not_overwritten() {
+        let (_dir, config, path) = store(Some("not = [toml"));
+        assert!(config.set("hub.oxen.ai", "k").is_err());
+        assert_eq!(fs::read_to_string(path).unwrap(), "not = [toml");
+    }
+
+    #[test]
+    fn saving_keeps_the_file_private_even_if_it_was_not() {
+        let (_dir, config, path) = store(Some(CLI_FILE));
+        config.set("hub.oxen.ai", "k").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        }
     }
 }

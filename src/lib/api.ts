@@ -46,6 +46,8 @@ export interface Api {
   setModels(models: string[]): Promise<Status>;
   remove(): Promise<Status>;
   restartClaude(): Promise<Status>;
+  /** The last characters of the key already saved for a host, or `null` if none is. */
+  savedKey(host: string): Promise<string | null>;
   /** Resolves with the model that answered. */
   testMessage(): Promise<string>;
   autostart(): Promise<boolean>;
@@ -66,6 +68,7 @@ export const tauriApi: Api = {
   setModels: (models) => invoke("set_models", { models }),
   remove: () => invoke("remove"),
   restartClaude: () => invoke("restart_claude"),
+  savedKey: (host) => invoke("saved_key", { host }),
   testMessage: () => invoke("test_message"),
   autostart: () => invoke("autostart"),
   setAutostart: (enabled) => invoke("set_autostart", { enabled }),

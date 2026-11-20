@@ -170,3 +170,23 @@ together with `display_name`, `behaves_as`, `max_effort_level`, `supports_1m` an
 `anthropic_family_tier`. But discovery is skipped when `inferenceModels` is set, unless
 `modelDiscoveryEnabled` is set explicitly. So subtitles need the gateway to describe its models,
 and how discovered models combine with a configured list is untested.
+
+## 2026-11-19 — The key lives in the Oxen CLI's settings file, not the keychain
+
+This replaces three earlier decisions above: keeping the key in the OS keychain, reading the
+keychain once per launch, and using a private file for development builds.
+
+The keychain kept interrupting with permission prompts, and "Always Allow" does not hold for
+unsigned builds. Meanwhile the Oxen CLI already stores a token per host in
+`~/.config/oxen/auth_config.toml`, and those hosts line up with Hitch's Host setting. So:
+
+- Hitch reads the token for the chosen host from that file. Anyone who has used the CLI has
+  nothing to paste.
+- A key pasted into Hitch is written to that file for that host, so the CLI gains it too.
+- Changing host uses that host's saved key. If it has none, the current key is carried over.
+- Hitch edits only the one host entry (with `toml_edit`, so the rest of the file is untouched),
+  writes atomically, and keeps the file owner-only. A file it cannot parse is never overwritten.
+- Remove no longer deletes the key: the CLI depends on it.
+
+The trade-off is that the key sits in a plain-text file readable by the user's own programs,
+rather than in the keychain. That is already true for every Oxen CLI user. Suggested by Greg.

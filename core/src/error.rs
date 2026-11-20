@@ -7,8 +7,6 @@ pub enum Error {
     /// Something the user can act on; the message is shown as-is.
     #[error("{0}")]
     Invalid(String),
-    #[error("Keychain: {0}")]
-    Keychain(String),
     #[error("{0}")]
     Process(String),
 }

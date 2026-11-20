@@ -23,8 +23,6 @@ pub struct HitchState {
     /// The chat models Oxen offered when Hitch last asked. Kept so Claude's model list can
     /// be rewritten without the network, for example when switching Oxen back on.
     pub catalog: Vec<Model>,
-    /// The last few characters of the key, so the user can tell which one is in use.
-    pub key_hint: Option<String>,
     /// When Hitch last changed Claude's config (unix seconds). A Claude that started
     /// before this has not picked the change up yet.
     pub last_write_at: Option<u64>,

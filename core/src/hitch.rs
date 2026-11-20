@@ -61,19 +61,34 @@ impl Hitch {
                 (started_at, state.last_write_at),
                 (Some(started), Some(written)) if started <= written
             ),
+            key_hint: self.key_for(&state).as_deref().map(hint),
             base_url: self.base_url(&state),
-            key_hint: state.key_hint,
             models: state.models,
         }
     }
 
-    /// The stored key, if there is one and the keychain lets us read it.
+    /// The saved key for the host Hitch is pointed at, if there is one.
     pub fn api_key(&self) -> Option<String> {
-        self.secrets.get().ok().flatten()
+        self.key_for(&self.state.load())
     }
 
-    /// Points Claude at the gateway. Pass a key the first time, or to replace it;
-    /// pass a base URL to change it. Anything omitted keeps its current value.
+    /// A hint of the key already saved for a host (as typed in the Host field), so the UI
+    /// can say that nothing needs pasting.
+    pub fn saved_key_hint(&self, host: &str) -> Option<String> {
+        let base_url = gateway::normalize_base_url(host).ok()?;
+        let key = self.secrets.get(host_of(&base_url)).ok().flatten()?;
+        Some(hint(&key))
+    }
+
+    fn key_for(&self, state: &HitchState) -> Option<String> {
+        let base_url = self.base_url(state);
+        self.secrets.get(host_of(&base_url)).ok().flatten()
+    }
+
+    /// Points Claude at the gateway. Pass a key to use a new one; pass a base URL to
+    /// change hosts. Without a key, the one already saved for the host is used, which
+    /// includes a key the Oxen CLI saved. Moving to a host with no saved key carries the
+    /// current key over.
     pub fn connect(&self, api_key: Option<String>, base_url: Option<String>) -> Result<Status> {
         let mut state = self.state.load();
         let new_key = api_key
@@ -83,6 +98,12 @@ impl Hitch {
             Some(url) => gateway::normalize_base_url(&url)?,
             None => self.base_url(&state),
         };
+
+        let host = host_of(&base_url).to_string();
+        let saved_for_host = self.secrets.get(&host).ok().flatten();
+        let key = new_key
+            .or_else(|| saved_for_host.clone())
+            .or_else(|| self.key_for(&state));
 
         let profile_id = match &state.profile_id {
             Some(id) => id.clone(),
@@ -100,8 +121,8 @@ impl Hitch {
             &profile_id,
             &GatewayProfile {
                 base_url: base_url.clone(),
-                // Without a new key, rewrite the one we hold; failing that, keep Claude's.
-                api_key: new_key.clone().or_else(|| self.api_key()),
+                // With no key at all, the profile keeps the one Claude already has.
+                api_key: key.clone(),
                 models: models::entries_for(&state.models, &state.catalog),
             },
         )?;
@@ -109,13 +130,10 @@ impl Hitch {
         state.profile_id = Some(profile_id);
         state.base_url = Some(base_url);
         state.last_write_at = Some(now());
-        if let Some(key) = &new_key {
-            state.key_hint = Some(hint(key));
-        }
         self.state.save(&state)?;
 
-        if let Some(key) = &new_key {
-            self.secrets.set(key)?;
+        if let Some(key) = key.filter(|key| saved_for_host.as_ref() != Some(key)) {
+            self.secrets.set(&host, &key)?;
         }
         Ok(self.status())
     }
@@ -154,8 +172,8 @@ impl Hitch {
         Ok(self.status())
     }
 
-    /// Takes Hitch's profile out of Claude, restores what was applied before, and
-    /// forgets the key.
+    /// Takes Hitch's profile out of Claude and restores what was applied before. The key
+    /// stays in the Oxen settings file, because the Oxen CLI uses it too.
     pub fn remove(&self) -> Result<Status> {
         let state = self.state.load();
         if let Some(id) = &state.profile_id {
@@ -170,7 +188,6 @@ impl Hitch {
             last_write_at: Some(now()),
             ..Default::default()
         })?;
-        self.secrets.delete()?;
         Ok(self.status())
     }
 
@@ -210,6 +227,12 @@ impl Hitch {
             .or_else(|| std::env::var("HITCH_BASE_URL").ok())
             .unwrap_or_else(|| DEFAULT_BASE_URL.into())
     }
+}
+
+/// `hub.oxen.ai` from `https://hub.oxen.ai/api/ai`: the name keys are saved under.
+fn host_of(base_url: &str) -> &str {
+    let rest = base_url.split_once("://").map_or(base_url, |(_, rest)| rest);
+    rest.split('/').next().unwrap_or(rest)
 }
 
 /// The last four characters, enough to recognize a key without revealing it.
@@ -356,6 +379,65 @@ mod tests {
         let profile = applied_profile(&w.hitch);
         assert_eq!(profile["inferenceGatewayBaseUrl"], "http://localhost:3001/api/ai");
         assert_eq!(profile["inferenceGatewayApiKey"], "key-abcd");
+    }
+
+    #[test]
+    fn a_key_the_oxen_cli_saved_is_used_without_pasting() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.secrets.set("hub.oxen.ai", "cli-token-9876").unwrap();
+
+        assert_eq!(w.hitch.status().key_hint.as_deref(), Some("9876"));
+        let status = w.hitch.connect(None, None).unwrap();
+
+        assert_eq!(status.link, Link::Connected);
+        assert_eq!(applied_profile(&w.hitch)["inferenceGatewayApiKey"], "cli-token-9876");
+    }
+
+    #[test]
+    fn each_host_uses_its_own_saved_key() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.secrets.set("hub.oxen.ai", "hub-token").unwrap();
+        w.hitch.secrets.set("localhost:3001", "local-token").unwrap();
+        w.hitch.connect(None, None).unwrap();
+
+        let status = w.hitch.connect(None, Some("localhost:3001".into())).unwrap();
+
+        assert_eq!(applied_profile(&w.hitch)["inferenceGatewayApiKey"], "local-token");
+        assert_eq!(status.key_hint.as_deref(), Some("oken"));
+        assert_eq!(w.hitch.api_key().as_deref(), Some("local-token"));
+        assert_eq!(w.hitch.secrets.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
+    }
+
+    #[test]
+    fn a_pasted_key_is_saved_for_its_host_only() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.secrets.set("hub.oxen.ai", "hub-token").unwrap();
+
+        w.hitch.connect(Some("pasted".into()), Some("dev.hub.oxen.ai".into())).unwrap();
+
+        assert_eq!(w.hitch.secrets.get("dev.hub.oxen.ai").unwrap().as_deref(), Some("pasted"));
+        assert_eq!(w.hitch.secrets.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
+    }
+
+    #[test]
+    fn moving_to_a_host_with_no_saved_key_brings_the_current_key_along() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.connect(Some("my-key".into()), None).unwrap();
+
+        w.hitch.connect(None, Some("localhost:3001".into())).unwrap();
+
+        assert_eq!(w.hitch.api_key().as_deref(), Some("my-key"));
+        assert_eq!(w.hitch.secrets.get("localhost:3001").unwrap().as_deref(), Some("my-key"));
+    }
+
+    #[test]
+    fn a_saved_key_can_be_looked_up_by_whatever_was_typed_as_the_host() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.secrets.set("localhost:3001", "local-token-4321").unwrap();
+        assert_eq!(w.hitch.saved_key_hint(" localhost:3001 ").as_deref(), Some("4321"));
+        assert_eq!(w.hitch.saved_key_hint("http://localhost:3001/api/ai").as_deref(), Some("4321"));
+        assert_eq!(w.hitch.saved_key_hint("hub.oxen.ai"), None);
+        assert_eq!(w.hitch.saved_key_hint("not a host"), None);
     }
 
     #[test]
@@ -506,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_puts_back_what_claude_had_before_and_forgets_the_key() {
+    fn remove_puts_back_what_claude_had_before_and_leaves_the_key_alone() {
         let w = world(FakeClaude::not_running());
         let paths = &w.hitch.paths;
         fs::create_dir_all(paths.library_dir()).unwrap();
@@ -520,8 +602,7 @@ mod tests {
         let status = w.hitch.remove().unwrap();
 
         assert_eq!(status.link, Link::NotConfigured);
-        assert_eq!(status.key_hint, None);
-        assert_eq!(w.hitch.api_key(), None);
+        assert_eq!(w.hitch.api_key().as_deref(), Some("k"), "the Oxen CLI still needs its key");
         assert_eq!(read(paths.meta_file()), meta_before);
         assert_eq!(read(paths.desktop_config()), json!({"deploymentMode": "1p"}));
         assert_eq!(fs::read_dir(paths.library_dir()).unwrap().count(), 2);

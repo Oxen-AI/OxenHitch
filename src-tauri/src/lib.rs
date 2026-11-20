@@ -11,7 +11,7 @@ use std::time::Duration;
 use hitch_core::claude::process::{fake::FakeClaude, SystemClaude};
 use hitch_core::claude::{ClaudeApp, ClaudePaths};
 use hitch_core::hitch::Hitch;
-use hitch_core::secrets::{FileSecrets, Keychain, Remembered, SecretStore};
+use hitch_core::secrets::{OxenConfig, SecretStore};
 use hitch_core::state::StateStore;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
@@ -55,6 +55,7 @@ pub fn run() {
             commands::remove,
             commands::restart_claude,
             commands::test_message,
+            commands::saved_key,
             commands::autostart,
             commands::set_autostart,
             commands::open_url,
@@ -67,8 +68,8 @@ pub fn run() {
 }
 
 /// With `HITCH_CLAUDE_DIR` set, Hitch runs in a sandbox: it writes Claude config to that
-/// directory, keeps its own state and key beside it, and never touches the real Claude
-/// app or the real keychain.
+/// directory, keeps its own state and keys beside it, and never touches the real Claude
+/// app or the real Oxen settings.
 fn build_hitch(app_data_dir: PathBuf) -> Hitch {
     let paths = ClaudePaths::detect();
     let sandbox = std::env::var_os("HITCH_CLAUDE_DIR").is_some();
@@ -77,13 +78,14 @@ fn build_hitch(app_data_dir: PathBuf) -> Hitch {
         if sandbox {
             (
                 paths.data_dir.with_file_name("hitch-state.json"),
-                Box::new(FileSecrets::new(paths.data_dir.with_file_name("hitch-key"))),
+                Box::new(OxenConfig::new(paths.data_dir.with_file_name("oxen-auth_config.toml"))),
                 Box::new(FakeClaude::running_since(1)),
             )
         } else {
             (
                 app_data_dir.join("state.json"),
-                key_store(&app_data_dir),
+                // The same file the Oxen CLI keeps its keys in.
+                Box::new(OxenConfig::for_user()),
                 Box::new(SystemClaude {
                     bundles: paths.app_bundles.clone(),
                 }),
@@ -95,25 +97,6 @@ fn build_hitch(app_data_dir: PathBuf) -> Hitch {
         state: StateStore::new(state_file),
         secrets,
         claude,
-    }
-}
-
-const KEYCHAIN_SERVICE: &str = "ai.oxen.hitch";
-
-/// Where the Oxen API key is kept.
-///
-/// Release builds use the OS keychain, read once per launch. A signed app reads its own
-/// keychain item without a prompt.
-///
-/// Development builds use an owner-only file instead. They are unsigned and every rebuild
-/// looks like a different app to macOS, so the keychain would ask for permission after
-/// each code change. Development builds never touch the keychain, not even to copy over a
-/// key an earlier build saved there: that read would raise the same prompt.
-fn key_store(app_data_dir: &std::path::Path) -> Box<dyn SecretStore> {
-    if cfg!(debug_assertions) {
-        Box::new(Remembered::new(FileSecrets::new(app_data_dir.join("dev-key"))))
-    } else {
-        Box::new(Remembered::new(Keychain::new(KEYCHAIN_SERVICE)))
     }
 }
 

@@ -1,7 +1,7 @@
 // A stand-in backend with the same behavior as the real one. Used by tests, and by
 // `pnpm dev` in a browser so the UI can be worked on without the desktop shell.
 
-import { isLocalHost, type Api, type Check, type Model, type Status } from "./api";
+import { hostOf, isLocalHost, type Api, type Check, type Model, type Status } from "./api";
 
 /** What the real backend does with a typed host: fill in the scheme and gateway path. */
 function toBaseUrl(input: string): string {
@@ -22,6 +22,8 @@ export const fakeModels: Model[] = [
 export interface FakeOptions {
   status?: Partial<Status>;
   check?: Check;
+  /** Keys already saved on this machine, as host -> last four characters. */
+  savedKeys?: Record<string, string>;
   /** The saved key cannot be read (keychain denied, or the key is gone). */
   keyUnreadable?: boolean;
   /** Milliseconds each call takes, to see loading states. */
@@ -45,6 +47,7 @@ export function createFakeApi(options: FakeOptions = {}) {
   let status: Status = { ...freshStatus, ...options.status };
   let autostart = false;
   const check: Check = options.check ?? { state: "ok", models: fakeModels };
+  const savedKeys = options.savedKeys ?? {};
   const listeners = new Set<(status: Status) => void>();
   const calls: string[] = [];
 
@@ -70,11 +73,12 @@ export function createFakeApi(options: FakeOptions = {}) {
     async connect({ apiKey, baseUrl }) {
       await record(`connect:${apiKey ?? ""}:${baseUrl ?? ""}`);
       const key = apiKey?.trim();
-      if (!key && !status.keyHint) throw "Paste your Oxen API key to connect.";
+      const saved = savedKeys[hostOf(baseUrl?.trim() ? toBaseUrl(baseUrl) : status.baseUrl)];
+      if (!key && !status.keyHint && !saved) throw "Paste your Oxen API key to connect.";
       if (key === "bad") throw "Oxen didn't accept that key. Check it and try again.";
       return update({
         link: "connected",
-        keyHint: key ? key.slice(-4) : status.keyHint,
+        keyHint: key ? key.slice(-4) : (saved ?? status.keyHint),
         baseUrl: baseUrl?.trim() ? toBaseUrl(baseUrl) : status.baseUrl,
         needsRestart: status.claudeRunning,
       });
@@ -94,6 +98,9 @@ export function createFakeApi(options: FakeOptions = {}) {
     async restartClaude() {
       await record("restartClaude");
       return update({ claudeRunning: true, needsRestart: false });
+    },
+    async savedKey(host) {
+      return savedKeys[hostOf(toBaseUrl(host))] ?? null;
     },
     async testMessage() {
       await record("testMessage");

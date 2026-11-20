@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { hostLabel, links, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
@@ -12,13 +12,30 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
   const [host, setHost] = useState(currentHost);
   const [custom, setCustom] = useState(false);
 
+  // A key the Oxen CLI (or an earlier Hitch) saved for this host means nothing to paste.
+  const lookupHost = custom ? host.trim() : currentHost;
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    setSaved(null);
+    if (lookupHost) {
+      api.savedKey(lookupHost).then(
+        (hint) => current && setSaved(hint),
+        () => undefined,
+      );
+    }
+    return () => {
+      current = false;
+    };
+  }, [api, lookupHost]);
+
   const connect = useAction(() =>
     api.connect({
       apiKey: key,
       baseUrl: custom && host.trim() !== currentHost ? host.trim() : undefined,
     }),
   );
-  const ready = key.trim() !== "" && !connect.busy;
+  const ready = (key.trim() !== "" || saved !== null) && !connect.busy;
   const submit = () => {
     if (ready) void connect.run();
   };
@@ -29,12 +46,16 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
         <OxenMark size={28} />
       </div>
       <h1>Run Claude on Oxen</h1>
-      <p className="lede">Paste your Oxen API key and Hitch sets up Claude Desktop for you.</p>
+      <p className="lede">
+        {saved
+          ? "Hitch sets up Claude Desktop for you. Your Oxen key is already on this Mac."
+          : "Paste your Oxen API key and Hitch sets up Claude Desktop for you."}
+      </p>
 
       <div className="stack">
         <Field
           label="Oxen API key"
-          placeholder="Oxen API key"
+          placeholder={saved ? "Paste a different key (optional)" : "Oxen API key"}
           value={key}
           secret
           autoFocus
@@ -56,6 +77,11 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
             }}
             onEnter={submit}
           />
+        )}
+        {saved && key.trim() === "" && (
+          <Notice tone="info">
+            {`Found your Oxen key ending in ${saved} for ${lookupHost}.`}
+          </Notice>
         )}
         {connect.error && <Notice>{connect.error}</Notice>}
         <button type="button" className="button primary" disabled={!ready} onClick={submit}>

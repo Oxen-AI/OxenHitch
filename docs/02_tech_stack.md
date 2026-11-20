@@ -7,7 +7,7 @@ _Last updated: 2026-11-19_
 | Layer | Choice | Why |
 |---|---|---|
 | App shell | **Tauri 2** | One codebase for macOS, Windows and Linux; ~10 MB app; native tray, autostart and windowing. Electron is ~150 MB for a menu-bar utility. Native Swift would be macOS-only and mean a rewrite per OS. |
-| Core logic | **Rust** | All file, keychain, process and network work. Matches Oxen's Rust codebase. Easy to unit test against a temp directory. |
+| Core logic | **Rust** | All file, key, process and network work. Matches Oxen's Rust codebase. Easy to unit test against a temp directory. |
 | UI | **React 19 + TypeScript + Vite** | Small popover UI; fast iteration; widely known. |
 | Styling | **Plain CSS with design tokens** | Pixel-level control for a native feel, system font, light/dark. No component library to fight. |
 | Rust tests | `cargo test`, `tempfile`, `wiremock` | Config logic runs against temp dirs; the gateway client runs against a mock HTTP server. |
@@ -21,7 +21,7 @@ _Last updated: 2026-11-19_
 | `tauri` (`tray-icon`, `macos-private-api`) | Shell, tray icon, transparent popover window |
 | `tauri-plugin-autostart` | Launch at login (LaunchAgent on macOS) |
 | `tauri-plugin-opener` | Opens links in the default browser |
-| `keyring` | Stores the Oxen API key in the OS keychain |
+| `toml_edit` | Reads and edits the Oxen CLI's `auth_config.toml` without disturbing the rest of it |
 | `reqwest` (rustls) | Gateway calls: `/v1/models`, `/v1/messages` |
 | `sysinfo` | Is Claude running, and when did it start |
 | `serde` / `serde_json` (`preserve_order`) | Reads and writes Claude's JSON without reordering or dropping keys |
@@ -39,7 +39,7 @@ core/                    hitch-core: all logic, no UI dependencies. Fast to buil
       library.rs         Read/write configLibrary and deployment mode
       process.rs         Detect, quit and reopen Claude (plus a fake for tests)
     gateway.rs           Oxen gateway client (validate key, list models, test message)
-    secrets.rs           Keychain access behind a trait
+    secrets.rs           The API key store: the Oxen CLI's auth file, behind a trait
     state.rs             Hitch's own small state file (never holds the key)
     hitch.rs             The service the UI calls: connect, pause, models, remove
   examples/inspect.rs    Prints what Hitch sees on this machine. Read-only.
@@ -81,8 +81,9 @@ cargo run -p hitch-core --example inspect   # what Hitch sees on this machine (r
 HITCH_CLAUDE_DIR=/tmp/hitch-sandbox/Claude-3p HITCH_STAY_OPEN=1 pnpm tauri dev
 ```
 
-- `HITCH_CLAUDE_DIR` — sandbox mode. Config is written there, Hitch's state and key sit beside it
-  in plain files (the keychain is not used), and "Restart Claude" is simulated.
+- `HITCH_CLAUDE_DIR` — sandbox mode. Config is written there, Hitch's state and its own copy of
+  an Oxen auth file sit beside it (your real `~/.config/oxen` is not touched), and
+  "Restart Claude" is simulated.
 - `HITCH_STAY_OPEN` — debug builds only. The popover does not close when it loses focus.
 - `HITCH_BASE_URL` — the gateway address offered before one is saved.
 

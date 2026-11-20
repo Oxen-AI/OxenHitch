@@ -33,6 +33,32 @@ describe("first run", () => {
     expect(calls).toContain("restartClaude");
   });
 
+  it("offers the key already saved on this Mac, with nothing to paste", async () => {
+    const { user, calls } = open({ savedKeys: { "hub.oxen.ai": "9876" } });
+    expect(await screen.findByText(/Found your Oxen key ending in 9876/)).toBeVisible();
+
+    const connect = screen.getByRole("button", { name: "Connect" });
+    await waitFor(() => expect(connect).toBeEnabled());
+    await user.click(connect);
+
+    expect(await screen.findByRole("heading", { name: "Restart Claude to finish" })).toBeVisible();
+    expect(calls).toContain("connect::");
+    expect(screen.getByText("••••9876")).toBeVisible();
+  });
+
+  it("looks for a saved key again when the host changes", async () => {
+    const { user } = open({ savedKeys: { "localhost:3001": "4321" } });
+    await user.click(await screen.findByRole("button", { name: "Use a different host" }));
+    expect(screen.queryByText(/Found your Oxen key/)).not.toBeInTheDocument();
+
+    const host = screen.getByLabelText("Host");
+    await user.clear(host);
+    await user.type(host, "localhost:3001");
+
+    expect(await screen.findByText(/Found your Oxen key ending in 4321/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+  });
+
   it("connects when Enter is pressed in the key field", async () => {
     const { user, calls } = open();
     await user.type(await screen.findByLabelText("Oxen API key"), "k{Enter}");

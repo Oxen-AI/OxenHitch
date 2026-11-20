@@ -35,14 +35,14 @@ obvious. It should feel like a first-party Mac utility.
 | Capability | Behavior |
 |---|---|
 | Menu-bar presence | An icon in the macOS menu bar (like Docker / Dropbox). Click for a popover. No Dock icon. |
-| Setup | Paste an Oxen API key. Hitch validates it against the gateway, then writes Claude's config. |
+| Setup | Hitch uses the Oxen API key already saved by the Oxen CLI, or the user pastes one. It validates the key against the gateway, then writes Claude's config. |
 | Connection status | Live state: connected / key rejected / gateway unreachable / Claude not installed. Menu-bar icon reflects it. |
 | Restart Claude | Config applies at launch, so Hitch offers a "Restart Claude" button. It never restarts Claude without a click. |
 | Switch back to Anthropic | One toggle returns Claude Desktop to normal Claude.ai sign-in, and back again, without losing the key. |
 | Models | Every chat model on Oxen is added to Claude Desktop, including non-Claude ones, which Claude would otherwise hide. The user can narrow the list and pick the default. |
 | Launch at login | Optional. Hitch starts with the Mac and re-checks that Claude is still pointed at Oxen. |
 | Host | Point Hitch at a different Oxen host. Typing just `hub.oxen.ai` or `localhost:3001` is enough; Hitch adds the scheme and the `/api/ai` path. A full URL also works. Defaults to `hub.oxen.ai`. |
-| Remove | Take Hitch's profile out of Claude and restore what was applied before. |
+| Remove | Take Hitch's profile out of Claude and restore what was applied before. The saved key is left alone. |
 
 Not in v1: "Sign in with Oxen" (browser login instead of pasting a key), Windows/Linux builds,
 agents other than Claude Desktop, auto-update, signed/notarized distribution.
@@ -101,7 +101,7 @@ for it; read `appliedId` from `_meta.json`. IDs must match `^[a-f0-9-]{36}$` _(o
   launch** and rewrites it as `__sealed__:v1:<base64>` (macOS Keychain item "Claude Safe Storage").
   This is documented behavior: "A tool that writes an unencrypted key still works, and the app
   encrypts that key at the next launch." A sealed value cannot be read back or moved to another
-  machine, which is why Hitch keeps its own copy of the key in the OS keychain.
+  machine, so Hitch needs the key from somewhere else: the Oxen CLI's settings file (see below).
 - `inferenceGatewayAuthScheme` — `bearer` (default) or `x-api-key`. Oxen uses bearer, so we omit it.
 - `inferenceModels` — optional. Overrides auto-discovery; the first entry is the default. Needed
   for non-Claude models because auto-discovery "shows only models whose IDs are recognizably Claude".
@@ -134,6 +134,27 @@ is writing `"3p"`. The profile and key stay put. This mirrors what Claude does i
   the model picker.
 - Auth: `Authorization: Bearer <key>`.
 - The base URL has **no** trailing `/v1`; Claude appends it. For Oxen: `https://hub.oxen.ai/api/ai`.
+
+### Where the API key lives
+
+Hitch keeps the key where the Oxen CLI already does: `~/.config/oxen/auth_config.toml`.
+
+```toml
+default_host = "hub.oxen.ai"
+
+[[host_configs]]
+host = "hub.oxen.ai"
+auth_token = "..."
+
+[[host_configs]]
+host = "localhost:3001"
+auth_token = "..."
+```
+
+Keys are per host, which matches Hitch's Host setting. If the file already has a token for the
+chosen host, Hitch offers it and nothing needs pasting. A key pasted into Hitch is saved there for
+that host, so the CLI can use it too. Hitch edits only that host's entry and never deletes a key.
+It does not use the OS keychain.
 
 ## How Hitch behaves
 
