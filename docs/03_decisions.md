@@ -315,3 +315,22 @@ A first-time user saw nothing after opening Hitch, then found a Dock icon that d
   menu bar. It goes away with "Got it".
 - Checked on a sandboxed copy of the built app by asking macOS whether the window is on screen:
   it was not before these changes, and is now, both on first launch and after reopening.
+
+## 2026-11-20 — Offer only the models Oxen's agent offers
+
+Hitch listed every model on Oxen that writes text and can be run: 84 on the Hub it was tried
+against. Claude's picker filled with small models, old snapshots and fine-tunes (`ox-...`), and
+most of them fail in Claude on the first message, since Claude sends tools with every request.
+
+A model from `GET /api/ai/models` is now kept only if all of these hold:
+
+- `capabilities.output` includes `text`, `capabilities.tools` is `true`, and `can_run_inference`
+  is not `false`. This is the Hub's own test for a model its agent can run
+  (`Oxen.Agent.tool_capable?`, and `isAgentCapable` in the web app).
+- `summary` is not empty. Oxen writes a summary for each model it curates. This also means every
+  model in the picker has a line under its name.
+
+On that Hub the list went from 84 models to 20. The rule is in `gateway::agent_model`.
+
+A model someone chose in Hitch earlier and that no longer passes stays in their list under its
+plain name, as a chosen model Oxen stopped listing always has.

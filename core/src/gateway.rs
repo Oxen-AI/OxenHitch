@@ -197,7 +197,7 @@ fn unreachable(base_url: &str, err: &reqwest::Error) -> Check {
     Check::Unreachable { message }
 }
 
-/// Oxen's full model list at `{base_url}/models`, cut down to models Claude can talk to.
+/// Oxen's full model list at `{base_url}/models`, cut down to the models worth offering in Claude.
 async fn catalog(base_url: &str, api_key: &str) -> Option<Vec<Model>> {
     let response = client()
         .get(format!("{base_url}/models"))
@@ -210,11 +210,16 @@ async fn catalog(base_url: &str, api_key: &str) -> Option<Vec<Model>> {
     }
     let body = response.json::<Value>().await.ok()?;
     let models = body.get("data")?.as_array()?;
-    Some(models.iter().filter_map(chat_model).collect())
+    Some(models.iter().filter_map(agent_model).collect())
 }
 
-/// A model from Oxen's list, if it answers in text and can be run.
-fn chat_model(item: &Value) -> Option<Model> {
+/// A model from Oxen's list, if it can drive an agent: it answers in text, can call tools,
+/// and can be run. This is the test Oxen's own agent applies. Claude sends tools with every
+/// request, so a model without them fails on the first message.
+///
+/// A model also needs a summary. Oxen writes one for each model it curates; the ones
+/// without are fine-tunes and models kept only for old work, which crowd the picker.
+fn agent_model(item: &Value) -> Option<Model> {
     let text = |value: Option<&Value>| {
         value
             .and_then(Value::as_str)
@@ -226,8 +231,13 @@ fn chat_model(item: &Value) -> Option<Model> {
         .pointer("/capabilities/output")
         .and_then(Value::as_array)
         .is_some_and(|kinds| kinds.iter().any(|kind| kind == "text"));
+    let calls_tools = item.pointer("/capabilities/tools").and_then(Value::as_bool) == Some(true);
     let runnable = item.get("can_run_inference").and_then(Value::as_bool) != Some(false);
-    if !writes_text || !runnable {
+    let summarized = item
+        .get("summary")
+        .and_then(Value::as_str)
+        .is_some_and(|summary| !summary.trim().is_empty());
+    if !(writes_text && calls_tools && runnable && summarized) {
         return None;
     }
     Some(Model {
@@ -376,7 +386,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn oxens_own_list_is_used_and_only_models_that_can_chat_are_kept() {
+    async fn oxens_own_list_is_used_and_only_models_fit_for_an_agent_are_kept() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/ai/v1/models"))
@@ -393,6 +403,7 @@ mod tests {
                 "data": [
                     {
                         "id": "gpt-5-mini", "display_name": "GPT 5 Mini",
+                        "summary": "Fast and cheap for everyday work",
                         "uuid": "0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61",
                         "developer": {"name": "openai", "logo": null},
                         "capabilities": {"input": ["text"], "output": ["text"], "tools": true},
@@ -411,8 +422,32 @@ mod tests {
                     },
                     {
                         "id": "sleeping-llm", "display_name": "Sleeping",
-                        "capabilities": {"output": ["text"]},
+                        "summary": "Not awake",
+                        "capabilities": {"output": ["text"], "tools": true},
                         "can_run_inference": false
+                    },
+                    {
+                        "id": "ministral-3b", "display_name": "Ministral 3B",
+                        "summary": "Small and quick",
+                        "capabilities": {"input": ["text"], "output": ["text"], "tools": false},
+                        "can_run_inference": true
+                    },
+                    {
+                        "id": "old-chat", "display_name": "Old Chat",
+                        "summary": "Chat only",
+                        "capabilities": {"input": ["text"], "output": ["text"]},
+                        "can_run_inference": true
+                    },
+                    {
+                        "id": "ox-faint-red-bug", "display_name": "ox-faint-red-bug",
+                        "summary": null,
+                        "capabilities": {"input": ["text"], "output": ["text"], "tools": true},
+                        "can_run_inference": true
+                    },
+                    {
+                        "id": "o3", "display_name": "o3", "summary": "  ",
+                        "capabilities": {"input": ["text"], "output": ["text"], "tools": true},
+                        "can_run_inference": true
                     }
                 ]
             })))
