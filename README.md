@@ -1,7 +1,7 @@
 # Oxen Hitch
 
 Run the Claude desktop app on [Oxen.ai](https://oxen.ai). Hitch lives in your menu bar: paste your
-Oxen API key, click Connect, restart Claude. No developer mode, no settings files to edit.
+Oxen API key, click Connect, restart Claude. No settings files to edit.
 
 **[Download the latest Hitch for Mac](https://github.com/Oxen-AI/OxenHitch/releases/latest)**
 
@@ -137,8 +137,8 @@ To go back to Anthropic, remove the two variables (`unset ANTHROPIC_BASE_URL ANT
 
 ## Set up by hand with Developer Mode
 
-You do not need this if you use Hitch. It is here for when you can't install Hitch, or want to
-see what Hitch set up. Claude's Developer Mode has a settings screen for the same thing.
+Hitch does this setup for you. This section is for when you can't install Hitch, or want to see
+what Hitch set up: Claude's Developer Mode has a settings screen for the same thing.
 
 1. In Claude, open **Help → Troubleshooting → Enable Developer Mode**.
 

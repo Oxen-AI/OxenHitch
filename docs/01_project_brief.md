@@ -123,7 +123,11 @@ is writing `"3p"`. The profile and key stay put. This mirrors what Claude does i
 - **Managed config wins.** If `/Library/Managed Preferences/com.anthropic.claudefordesktop.plist`
   (MDM) sets inference keys, local `configLibrary/` values are ignored. Hitch detects this and says
   so rather than appearing to work.
-- **Developer Mode is not required** when writing `configLibrary/` directly. Hitch never touches it.
+- **Developer Mode should not be required** when writing `configLibrary/` directly, and Hitch
+  never touches it. This rests on the docs and on the app's code (the Developer Mode switch gates
+  the Developer menu and DevTools, not the config reader). It is **not yet confirmed on a Mac
+  where Developer Mode was never enabled**: the Mac Hitch was built on had it on throughout.
+  Until that is confirmed, user-facing text does not promise "no developer mode".
 - A plain `defaults write com.anthropic.claudefordesktop …` in the user domain is not a documented
   config source. Don't use it.
 
