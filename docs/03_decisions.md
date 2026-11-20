@@ -334,3 +334,17 @@ On that Hub the list went from 84 models to 20. The rule is in `gateway::agent_m
 
 A model someone chose in Hitch earlier and that no longer passes stays in their list under its
 plain name, as a chosen model Oxen stopped listing always has.
+
+## 2026-11-20 — Restart Claude keeps trying while Claude updates
+
+The Restart button showed an error on a Mac where Claude had an update waiting. Claude's log
+showed why: it installed the update as it quit (6.6395.1 to 6.28899.2) and was gone for about
+20 seconds. Hitch asked macOS to open Claude the moment the old process was gone, once, and gave
+up when that failed.
+
+Hitch now asks again every 2 seconds for up to 60 seconds, and only then reports that Claude did
+not open, with the reason macOS gave. Waiting for Claude to quit is still 20 seconds.
+
+The error itself was not captured, and an update cannot be staged on demand, so this is tested
+with a scripted Claude that refuses to open at first (`core/src/claude/process.rs`), and by
+restarting the real Claude with `cargo run -p hitch-core --example restart`.

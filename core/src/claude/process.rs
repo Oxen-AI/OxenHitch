@@ -23,8 +23,13 @@ pub struct SystemClaude {
 }
 
 const BUNDLE_ID: &str = "com.anthropic.claudefordesktop";
-/// How long to wait for Claude to finish quitting, and again for it to finish opening.
-const PATIENCE: Duration = Duration::from_secs(20);
+/// How long to wait for Claude to finish quitting.
+const QUIT_PATIENCE: Duration = Duration::from_secs(20);
+/// How long to wait for Claude to be back. Longer, because Claude installs a waiting update
+/// as it quits, and cannot be opened until that is done (about 20 seconds when measured).
+const OPEN_PATIENCE: Duration = Duration::from_secs(60);
+/// How long to wait before asking again for an app that could not be opened.
+const OPEN_AGAIN: Duration = Duration::from_secs(2);
 
 impl SystemClaude {
     /// The main process is the one whose executable sits directly in an installed bundle.
@@ -75,49 +80,73 @@ impl ClaudeApp for SystemClaude {
             || self.started_at().is_some(),
             quit,
             open,
-            PATIENCE,
-            Duration::from_millis(200),
+            Patience {
+                quit: QUIT_PATIENCE,
+                open: OPEN_PATIENCE,
+                open_again: OPEN_AGAIN,
+                poll: Duration::from_millis(200),
+            },
         )
     }
+}
+
+struct Patience {
+    quit: Duration,
+    open: Duration,
+    open_again: Duration,
+    poll: Duration,
 }
 
 /// Quit Claude if it is running, wait until it is really gone, open it, and wait until
 /// it is really back. Waiting matters at both ends: opening too early just brings the
 /// old process forward with its old settings, and returning too early leaves the user
 /// looking at "Claude isn't running".
+///
+/// Opening is tried again while it fails. Claude installs a waiting update as it quits,
+/// and until that is done the app is not there to open.
 fn restart_with(
     is_running: impl Fn() -> bool,
     quit: impl FnOnce() -> Result<()>,
-    open: impl FnOnce() -> Result<()>,
-    patience: Duration,
-    poll: Duration,
+    open: impl Fn() -> Result<()>,
+    patience: Patience,
 ) -> Result<()> {
-    let wait_until = |wanted: bool| {
-        let deadline = Instant::now() + patience;
+    let wait_until = |wanted: bool, deadline: Instant| {
         while is_running() != wanted {
             if Instant::now() > deadline {
                 return false;
             }
-            sleep(poll);
+            sleep(patience.poll);
         }
         true
     };
 
     if is_running() {
         quit()?;
-        if !wait_until(false) {
+        if !wait_until(false, Instant::now() + patience.quit) {
             return Err(Error::Process(
                 "Claude did not quit. It may be asking you something — check its windows, then try again.".into(),
             ));
         }
     }
-    open()?;
-    if !wait_until(true) {
-        return Err(Error::Process(
+
+    let deadline = Instant::now() + patience.open;
+    let refused = loop {
+        match open() {
+            Ok(()) => break None,
+            Err(_) if Instant::now() + patience.open_again < deadline => sleep(patience.open_again),
+            Err(err) => break Some(err),
+        }
+    };
+    match refused {
+        None if wait_until(true, deadline) => Ok(()),
+        None => Err(Error::Process(
             "Claude did not open. Try opening it yourself.".into(),
-        ));
+        )),
+        Some(Error::Process(why)) => Err(Error::Process(format!(
+            "Claude did not open. Try opening it yourself. ({why})"
+        ))),
+        Some(other) => Err(other),
     }
-    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -222,6 +251,8 @@ mod tests {
         log: RefCell<Vec<&'static str>>,
         obeys_quit: bool,
         obeys_open: bool,
+        /// How many times opening fails before it works, as while Claude installs an update.
+        open_refusals: Cell<u32>,
     }
 
     impl Scripted {
@@ -233,6 +264,7 @@ mod tests {
                 log: RefCell::new(Vec::new()),
                 obeys_quit: true,
                 obeys_open: true,
+                open_refusals: Cell::new(0),
             }
         }
 
@@ -266,10 +298,19 @@ mod tests {
                         !self.running.get(),
                         "opened while the old Claude was still running"
                     );
+                    if self.open_refusals.get() > 0 {
+                        self.open_refusals.set(self.open_refusals.get() - 1);
+                        self.log.borrow_mut().push("open refused");
+                        return Err(Error::Process("the app is being replaced".into()));
+                    }
                     self.request("open", self.obeys_open, true)
                 },
-                PATIENCE,
-                POLL,
+                Patience {
+                    quit: PATIENCE,
+                    open: PATIENCE,
+                    open_again: POLL * 5,
+                    poll: POLL,
+                },
             )
         }
     }
@@ -304,6 +345,29 @@ mod tests {
             "must not open a second copy"
         );
         assert!(err.to_string().contains("did not quit"));
+    }
+
+    /// Claude installs a waiting update as it quits. For some seconds after that the app
+    /// cannot be opened, and then it can.
+    #[test]
+    fn a_claude_that_cannot_be_opened_yet_is_tried_again() {
+        let claude = Scripted::new(true);
+        claude.open_refusals.set(2);
+        claude.restart().unwrap();
+        assert_eq!(
+            *claude.log.borrow(),
+            ["quit", "open refused", "open refused", "open"]
+        );
+        assert!(claude.running.get());
+    }
+
+    #[test]
+    fn a_claude_that_can_never_be_opened_says_why() {
+        let claude = Scripted::new(false);
+        claude.open_refusals.set(u32::MAX);
+        let err = claude.restart().unwrap_err().to_string();
+        assert!(err.contains("did not open"), "{err}");
+        assert!(err.contains("the app is being replaced"), "{err}");
     }
 
     #[test]
