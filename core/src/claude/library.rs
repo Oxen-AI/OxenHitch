@@ -7,6 +7,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
+use super::models::ModelEntry;
 use super::paths::ClaudePaths;
 use crate::{Error, Result};
 
@@ -29,7 +30,7 @@ pub struct GatewayProfile {
     /// `None` keeps whatever key the profile already has (it may be sealed by Claude).
     pub api_key: Option<String>,
     /// Models to show, default first. Empty lets Claude discover them.
-    pub models: Vec<String>,
+    pub models: Vec<ModelEntry>,
 }
 
 /// What a saved configuration currently says, as far as Hitch cares.
@@ -112,7 +113,8 @@ pub fn apply_profile(paths: &ClaudePaths, id: &str, profile: &GatewayProfile) ->
     if profile.models.is_empty() {
         body.shift_remove(MODELS);
     } else {
-        body.insert(MODELS.into(), json!(profile.models));
+        let models: Vec<Value> = profile.models.iter().map(ModelEntry::to_config).collect();
+        body.insert(MODELS.into(), Value::Array(models));
     }
 
     let mut entries = entries(&meta);
@@ -440,6 +442,39 @@ mod tests {
         profile.models.clear();
         apply_profile(&paths, &id, &profile).unwrap();
         assert!(read(paths.profile_file(&id)).get("inferenceModels").is_none());
+    }
+
+    #[test]
+    fn a_model_with_a_label_is_written_the_way_claude_reads_it() {
+        let (_dir, paths) = sandbox();
+        let id = new_profile_id();
+        let mut profile = oxen(Some("k"));
+        profile.models = vec![
+            "claude-opus-5-5".into(),
+            ModelEntry {
+                name: "claude-via-0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61".into(),
+                label: Some("GPT 5 Mini".into()),
+                behaves_as: Some("claude-sonnet-5".into()),
+            },
+        ];
+
+        apply_profile(&paths, &id, &profile).unwrap();
+
+        assert_eq!(
+            read(paths.profile_file(&id))["inferenceModels"],
+            json!([
+                "claude-opus-5-5",
+                {
+                    "name": "claude-via-0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61",
+                    "labelOverride": "GPT 5 Mini",
+                    "behavesAs": "claude-sonnet-5"
+                }
+            ])
+        );
+        assert_eq!(
+            snapshot(&paths).applied.unwrap().models,
+            ["claude-opus-5-5", "claude-via-0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61"]
+        );
     }
 
     #[test]

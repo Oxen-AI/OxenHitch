@@ -39,7 +39,7 @@ obvious. It should feel like a first-party Mac utility.
 | Connection status | Live state: connected / key rejected / gateway unreachable / Claude not installed. Menu-bar icon reflects it. |
 | Restart Claude | Config applies at launch, so Hitch offers a "Restart Claude" button. It never restarts Claude without a click. |
 | Switch back to Anthropic | One toggle returns Claude Desktop to normal Claude.ai sign-in, and back again, without losing the key. |
-| Model picker | Choose which gateway models Claude Desktop shows and which is the default. |
+| Models | Every chat model on Oxen is added to Claude Desktop, including non-Claude ones, which Claude would otherwise hide. The user can narrow the list and pick the default. |
 | Launch at login | Optional. Hitch starts with the Mac and re-checks that Claude is still pointed at Oxen. |
 | Host | Point Hitch at a different Oxen host. Typing just `hub.oxen.ai` or `localhost:3001` is enough; Hitch adds the scheme and the `/api/ai` path. A full URL also works. Defaults to `hub.oxen.ai`. |
 | Remove | Take Hitch's profile out of Claude and restore what was applied before. |

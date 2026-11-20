@@ -24,13 +24,16 @@ pub fn status(hitch: Shared) -> Status {
 #[tauri::command]
 pub async fn check_gateway(hitch: Shared<'_>) -> CommandResult<Option<Check>> {
     let hitch = hitch.inner().clone();
-    let (key, base_url) = blocking(move || Ok((hitch.api_key(), hitch.status().base_url)))
+    let reader = hitch.clone();
+    let (key, base_url) = blocking(move || Ok((reader.api_key(), reader.status().base_url)))
         .await
         .map_err(sentence)?;
-    Ok(match key {
-        Some(key) => Some(gateway::check(&base_url, &key).await),
-        None => None,
-    })
+    let Some(key) = key else {
+        return Ok(None);
+    };
+    let check = gateway::check(&base_url, &key).await;
+    remember(&hitch, &check).await;
+    Ok(Some(check))
 }
 
 /// Proves the key works before anything is written, so a typo never reaches Claude.
@@ -56,7 +59,10 @@ pub async fn connect(
         return Err("Paste your Oxen API key to connect.".into());
     };
 
-    match gateway::check(&url, &key).await {
+    let check = gateway::check(&url, &key).await;
+    // So the profile written below lists every model Oxen offers.
+    remember(&hitch, &check).await;
+    match check {
         Check::Ok { .. } => {}
         Check::InvalidKey => {
             return Err("Oxen didn't accept that key. Check it and try again.".into())
@@ -84,6 +90,15 @@ pub async fn set_models(
     models: Vec<String>,
 ) -> CommandResult<Status> {
     let hitch = hitch.inner().clone();
+    // Refresh what Oxen offers first, so the names written to Claude are current. If Oxen
+    // can't be reached, the last list Hitch saw is used.
+    let reader = hitch.clone();
+    let (key, base_url) = blocking(move || Ok((reader.api_key(), reader.status().base_url)))
+        .await
+        .map_err(sentence)?;
+    if let Some(key) = key {
+        remember(&hitch, &gateway::check(&base_url, &key).await).await;
+    }
     changed(&app, blocking(move || hitch.set_models(models)).await)
 }
 
@@ -173,6 +188,15 @@ pub fn hide(window: WebviewWindow) {
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
+}
+
+/// Keeps Hitch's record of what Oxen offers current. Failing to save it is not worth
+/// interrupting the user for; the previous record stays in use.
+async fn remember(hitch: &Arc<Hitch>, check: &Check) {
+    if let Check::Ok { models } = check {
+        let (hitch, models) = (hitch.clone(), models.clone());
+        let _ = blocking(move || hitch.remember_catalog(models)).await;
+    }
 }
 
 /// After a change: update the menu-bar icon and tell the UI, without waiting for the poll.

@@ -83,8 +83,7 @@ fn build_hitch(app_data_dir: PathBuf) -> Hitch {
         } else {
             (
                 app_data_dir.join("state.json"),
-                // Read the keychain once per launch; every read can raise a prompt.
-                Box::new(Remembered::new(Keychain::new("ai.oxen.hitch"))),
+                key_store(&app_data_dir),
                 Box::new(SystemClaude {
                     bundles: paths.app_bundles.clone(),
                 }),
@@ -96,6 +95,25 @@ fn build_hitch(app_data_dir: PathBuf) -> Hitch {
         state: StateStore::new(state_file),
         secrets,
         claude,
+    }
+}
+
+const KEYCHAIN_SERVICE: &str = "ai.oxen.hitch";
+
+/// Where the Oxen API key is kept.
+///
+/// Release builds use the OS keychain, read once per launch. A signed app reads its own
+/// keychain item without a prompt.
+///
+/// Development builds use an owner-only file instead. They are unsigned and every rebuild
+/// looks like a different app to macOS, so the keychain would ask for permission after
+/// each code change. Development builds never touch the keychain, not even to copy over a
+/// key an earlier build saved there: that read would raise the same prompt.
+fn key_store(app_data_dir: &std::path::Path) -> Box<dyn SecretStore> {
+    if cfg!(debug_assertions) {
+        Box::new(Remembered::new(FileSecrets::new(app_data_dir.join("dev-key"))))
+    } else {
+        Box::new(Remembered::new(Keychain::new(KEYCHAIN_SERVICE)))
     }
 }
 

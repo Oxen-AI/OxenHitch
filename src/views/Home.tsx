@@ -231,7 +231,7 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
 
 function modelSummary(status: Status, gateway: Gateway) {
   const [first, ...rest] = status.models;
-  if (!first) return "Automatic";
+  if (!first) return gateway.state === "ok" ? `All ${gateway.models.length}` : "All";
   const known = gateway.state === "ok" ? gateway.models.find((model) => model.id === first) : undefined;
   const name = known?.name ?? first;
   return rest.length ? `${name} + ${rest.length}` : name;

@@ -2,6 +2,7 @@
 //! third-party mode works and where these facts come from.
 
 pub mod library;
+pub mod models;
 pub mod paths;
 pub mod process;
 

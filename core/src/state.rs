@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::claude::DeploymentMode;
+use crate::gateway::Model;
 use crate::Result;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,8 +18,11 @@ pub struct HitchState {
     pub previous_applied_id: Option<String>,
     pub previous_mode: Option<DeploymentMode>,
     pub base_url: Option<String>,
-    /// Models to show in Claude, default first. Empty means let Claude discover them.
+    /// The models the user chose to show in Claude, default first. Empty means all of them.
     pub models: Vec<String>,
+    /// The chat models Oxen offered when Hitch last asked. Kept so Claude's model list can
+    /// be rewritten without the network, for example when switching Oxen back on.
+    pub catalog: Vec<Model>,
     /// The last few characters of the key, so the user can tell which one is in use.
     pub key_hint: Option<String>,
     /// When Hitch last changed Claude's config (unix seconds). A Claude that started

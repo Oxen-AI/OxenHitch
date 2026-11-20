@@ -16,13 +16,18 @@ export interface Status {
   needsRestart: boolean;
   baseUrl: string;
   keyHint: string | null;
-  /** Models shown in Claude, default first. Empty means Claude chooses. */
+  /** Models chosen to show in Claude, default first. Empty means all of Oxen's. */
   models: string[];
 }
 
 export interface Model {
+  /** The name Oxen knows the model by. */
   id: string;
   name: string | null;
+  /** Oxen's stable identifier, when it provides one. */
+  uuid?: string | null;
+  /** Who makes the model. */
+  developer?: string | null;
 }
 
 export type Check =

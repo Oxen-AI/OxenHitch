@@ -13,11 +13,26 @@ pub const DEFAULT_BASE_URL: &str = "https://hub.oxen.ai/api/ai";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 const TIMEOUT: Duration = Duration::from_secs(15);
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Model {
+    /// The name Oxen knows the model by, e.g. `gpt-5-mini`.
     pub id: String,
     /// A friendlier name, when the gateway provides one.
     pub name: Option<String>,
+    /// Oxen's stable identifier for the model, when the gateway provides one.
+    pub uuid: Option<String>,
+    /// Who makes the model, e.g. `anthropic`.
+    pub developer: Option<String>,
+}
+
+impl Model {
+    pub fn named(id: &str) -> Self {
+        Self {
+            id: id.into(),
+            ..Default::default()
+        }
+    }
 }
 
 /// The outcome of checking a key against the gateway. Shown to the user, so every
@@ -111,9 +126,15 @@ pub async fn check(base_url: &str, api_key: &str) -> Check {
         };
     }
     match response.json::<Value>().await {
-        Ok(body) => Check::Ok {
-            models: parse_models(&body),
-        },
+        Ok(body) => {
+            // The key works. Oxen's own list says more about each model (who makes it,
+            // its UUID, what it can do), so prefer it; a gateway without one still works.
+            let models = match catalog(base_url, api_key).await {
+                Some(models) if !models.is_empty() => models,
+                _ => parse_models(&body),
+            };
+            Check::Ok { models }
+        }
         Err(_) => Check::Failed {
             message: "The gateway's reply was not a model list. Check the gateway address.".into(),
         },
@@ -173,6 +194,42 @@ fn unreachable(base_url: &str, err: &reqwest::Error) -> Check {
     Check::Unreachable { message }
 }
 
+/// Oxen's full model list at `{base_url}/models`, cut down to models Claude can talk to.
+async fn catalog(base_url: &str, api_key: &str) -> Option<Vec<Model>> {
+    let response = client()
+        .get(format!("{base_url}/models"))
+        .bearer_auth(api_key)
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let body = response.json::<Value>().await.ok()?;
+    let models = body.get("data")?.as_array()?;
+    Some(models.iter().filter_map(chat_model).collect())
+}
+
+/// A model from Oxen's list, if it answers in text and can be run.
+fn chat_model(item: &Value) -> Option<Model> {
+    let text = |value: Option<&Value>| value.and_then(Value::as_str).filter(|s| !s.is_empty()).map(String::from);
+    let id = text(item.get("id"))?;
+    let writes_text = item
+        .pointer("/capabilities/output")
+        .and_then(Value::as_array)
+        .is_some_and(|kinds| kinds.iter().any(|kind| kind == "text"));
+    let runnable = item.get("can_run_inference").and_then(Value::as_bool) != Some(false);
+    if !writes_text || !runnable {
+        return None;
+    }
+    Some(Model {
+        name: text(item.get("display_name")).filter(|name| name != &id),
+        uuid: text(item.get("uuid")),
+        developer: text(item.pointer("/developer/name")),
+        id,
+    })
+}
+
 fn host(base_url: &str) -> &str {
     base_url
         .split("://")
@@ -198,6 +255,7 @@ fn parse_models(body: &Value) -> Vec<Model> {
             Some(Model {
                 id: id.into(),
                 name: name.map(String::from),
+                ..Default::default()
             })
         })
         .collect()
@@ -267,9 +325,66 @@ mod tests {
             result,
             Check::Ok {
                 models: vec![
-                    Model { id: "claude-opus-5".into(), name: Some("Claude Opus 5".into()) },
-                    Model { id: "llama-4".into(), name: None },
+                    Model { name: Some("Claude Opus 5".into()), ..Model::named("claude-opus-5") },
+                    Model::named("llama-4"),
                 ]
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn oxens_own_list_is_used_and_only_models_that_can_chat_are_kept() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/ai/v1/models"))
+            .and(header("authorization", "Bearer k"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": [{"id": "gpt-5-mini"}]})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/ai/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "object": "list",
+                "data": [
+                    {
+                        "id": "gpt-5-mini", "display_name": "GPT 5 Mini",
+                        "uuid": "0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61",
+                        "developer": {"name": "openai", "logo": null},
+                        "capabilities": {"input": ["text"], "output": ["text"], "tools": true},
+                        "can_run_inference": true
+                    },
+                    {
+                        "id": "flux-2", "display_name": "FLUX 2",
+                        "developer": {"name": "bfl"},
+                        "capabilities": {"input": ["text"], "output": ["image"]},
+                        "can_run_inference": true
+                    },
+                    {
+                        "id": "text-embed-4", "display_name": "Embed 4",
+                        "capabilities": {"input": ["text"], "output": ["embeddings"]},
+                        "can_run_inference": true
+                    },
+                    {
+                        "id": "sleeping-llm", "display_name": "Sleeping",
+                        "capabilities": {"output": ["text"]},
+                        "can_run_inference": false
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let result = check(&format!("{}/api/ai", server.uri()), "k").await;
+
+        assert_eq!(
+            result,
+            Check::Ok {
+                models: vec![Model {
+                    id: "gpt-5-mini".into(),
+                    name: Some("GPT 5 Mini".into()),
+                    uuid: Some("0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61".into()),
+                    developer: Some("openai".into()),
+                }]
             }
         );
     }

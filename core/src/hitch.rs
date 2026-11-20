@@ -5,8 +5,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
 use crate::claude::library::{self, GatewayProfile};
+use crate::claude::models;
 use crate::claude::{ClaudeApp, ClaudePaths, DeploymentMode};
-use crate::gateway::{self, DEFAULT_BASE_URL};
+use crate::gateway::{self, Model, DEFAULT_BASE_URL};
 use crate::secrets::SecretStore;
 use crate::state::{HitchState, StateStore};
 use crate::{Error, Result};
@@ -101,7 +102,7 @@ impl Hitch {
                 base_url: base_url.clone(),
                 // Without a new key, rewrite the one we hold; failing that, keep Claude's.
                 api_key: new_key.clone().or_else(|| self.api_key()),
-                models: state.models.clone(),
+                models: models::entries_for(&state.models, &state.catalog),
             },
         )?;
 
@@ -119,7 +120,19 @@ impl Hitch {
         Ok(self.status())
     }
 
-    /// Chooses which models Claude shows, default first. Empty lets Claude discover them.
+    /// Records the chat models Oxen offers right now. Nothing is written to Claude: the
+    /// list is used the next time Hitch applies its profile (connect, model choice,
+    /// switching on).
+    pub fn remember_catalog(&self, catalog: Vec<Model>) -> Result<()> {
+        let mut state = self.state.load();
+        if state.catalog != catalog {
+            state.catalog = catalog;
+            self.state.save(&state)?;
+        }
+        Ok(())
+    }
+
+    /// Chooses which models Claude shows, default first. Empty shows every model Oxen offers.
     pub fn set_models(&self, models: Vec<String>) -> Result<Status> {
         let mut state = self.configured()?;
         state.models = models;
@@ -391,6 +404,77 @@ mod tests {
 
         w.hitch.set_models(vec![]).unwrap();
         assert!(applied_profile(&w.hitch).get("inferenceModels").is_none());
+    }
+
+    fn oxen_catalog() -> Vec<Model> {
+        let model = |id: &str, name: &str, developer: &str, uuid: Option<&str>| Model {
+            id: id.into(),
+            name: Some(name.into()),
+            developer: Some(developer.into()),
+            uuid: uuid.map(String::from),
+        };
+        vec![
+            model("gpt-5-mini", "GPT 5 Mini", "openai", Some("0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61")),
+            model("claude-opus-5-5", "Claude Opus 5.5", "anthropic", None),
+        ]
+    }
+
+    #[test]
+    fn connecting_lists_every_oxen_model_in_claude() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+
+        w.hitch.connect(Some("k".into()), None).unwrap();
+
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceModels"],
+            json!([
+                "claude-opus-5-5",
+                {
+                    "name": "claude-via-0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61",
+                    "labelOverride": "GPT 5 Mini",
+                    "behavesAs": "claude-sonnet-5"
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn the_model_list_survives_switching_off_and_on_without_the_network() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+        w.hitch.connect(Some("k".into()), None).unwrap();
+        let before = applied_profile(&w.hitch)["inferenceModels"].clone();
+
+        w.hitch.set_routing(false).unwrap();
+        w.hitch.set_routing(true).unwrap();
+
+        assert_eq!(applied_profile(&w.hitch)["inferenceModels"], before);
+    }
+
+    #[test]
+    fn choosing_models_narrows_the_list_and_sets_the_default() {
+        let w = world(FakeClaude::not_running());
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+        w.hitch.connect(Some("k".into()), None).unwrap();
+
+        w.hitch.set_models(vec!["gpt-5-mini".into()]).unwrap();
+
+        let models = applied_profile(&w.hitch)["inferenceModels"].clone();
+        assert_eq!(models.as_array().unwrap().len(), 1);
+        assert_eq!(models[0]["labelOverride"], "GPT 5 Mini");
+    }
+
+    #[test]
+    fn a_newer_catalog_only_reaches_claude_on_the_next_change() {
+        let w = world(FakeClaude::running_since(1));
+        w.hitch.connect(Some("k".into()), None).unwrap();
+        w.hitch.restart_claude().unwrap();
+
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+
+        assert!(applied_profile(&w.hitch).get("inferenceModels").is_none());
+        assert!(!w.hitch.status().needs_restart, "remembering must not touch Claude");
     }
 
     #[test]

@@ -8,7 +8,7 @@ import { Check, Notice, Spinner, SubHeader } from "../components/ui";
 /** More models than this and a search field appears. */
 const SEARCH_FROM = 8;
 
-/** Pick which models Claude shows. The first pick is the default. */
+/** Show every Oxen model in Claude, or pick which. The first pick is the default. */
 export function Models(props: { api: Api; status: Status; gateway: Gateway; onDone: () => void }) {
   const { api, status, gateway, onDone } = props;
   const [picked, setPicked] = useState<string[]>(status.models);
@@ -60,8 +60,8 @@ export function Models(props: { api: Api; status: Status; gateway: Gateway; onDo
             <Check />
           </span>
           <span className="choice-text">
-            <span className="row-label">Automatic</span>
-            <span className="choice-note">Claude shows the Claude models Oxen offers.</span>
+            <span className="row-label">All models</span>
+            <span className="choice-note">Every chat model on Oxen, added to Claude for you.</span>
           </span>
         </button>
       </div>

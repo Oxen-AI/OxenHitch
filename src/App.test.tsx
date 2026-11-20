@@ -196,9 +196,15 @@ describe("choosing models", () => {
     return view;
   }
 
-  it("starts on automatic", async () => {
+  it("starts with every Oxen model shown", async () => {
     await openModels();
-    expect(screen.getByRole("radio", { name: /Automatic/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /All models/ })).toBeChecked();
+  });
+
+  it("says how many models that is on the home screen", async () => {
+    open({ status: connectedStatus });
+    const row = await screen.findByRole("button", { name: /^Models/ });
+    expect(await within(row).findByText("All 4")).toBeVisible();
   });
 
   it("saves the chosen models with the first pick as the default", async () => {
@@ -222,11 +228,11 @@ describe("choosing models", () => {
     await waitFor(() => expect(calls).toContain("setModels:claude-haiku-5-5,claude-opus-5-5"));
   });
 
-  it("goes back to automatic", async () => {
+  it("goes back to showing every model", async () => {
     const { user, calls } = await openModels({
       status: { ...connectedStatus, models: ["claude-opus-5-5"] },
     });
-    await user.click(screen.getByRole("radio", { name: /Automatic/ }));
+    await user.click(screen.getByRole("radio", { name: /All models/ }));
     await user.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() => expect(calls).toContain("setModels:"));
   });

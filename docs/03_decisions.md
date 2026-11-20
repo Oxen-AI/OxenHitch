@@ -129,3 +129,44 @@ a stable identity, so users should see at most one prompt, if any. Reported by G
 The "not connected" icon used to be the mark at 42% opacity. Next to other menu-bar icons it looked
 broken rather than informative. The mark is now solid and larger (18pt tall) in every state, and a
 slash through it means Oxen is set up but switched off or no longer applied. Requested by Greg.
+
+## 2026-11-19 — Development builds keep the key in a file, not the keychain
+
+Reading the keychain once per launch was not enough during development: every code change rebuilds
+the unsigned app, macOS treats it as a different program, and the permission prompt returns. Debug
+builds now store the key in an owner-only file (`dev-key` in Hitch's app-data folder). Release
+builds still use the keychain, where a signed app reads its own item without a prompt. Reported by
+Greg.
+
+## 2026-11-19 — Hitch lists Oxen's models in Claude itself, named `claude-via-{UUID}`
+
+Claude Desktop only shows a model whose name reads as one of Anthropic's, so its own discovery
+hides most of what Oxen offers. Hitch therefore writes `inferenceModels` itself:
+
+- It reads Oxen's full list from `GET {host}/api/ai/models` and keeps models that output text and
+  can run inference.
+- Anthropic's models keep their names. Every other model is written as
+  `{ "name": "claude-via-{UUID}", "labelOverride": "<display name>", "behavesAs": "claude-sonnet-5" }`,
+  using the model's `uuid` field from that list.
+- **The server side of this is not built yet.** Oxen's list has no `uuid` field and the gateway
+  resolves `claude-via-<name>` by name only. Until a model has a `uuid`, Hitch writes the model's
+  name reversed (`claude-via-inim-5-tpg`), which the gateway already resolves, and switches to the
+  UUID by itself once the field appears. Greg is adding the server support.
+- With nothing chosen in Hitch, every model is listed (Anthropic's first). Choosing models narrows
+  the list; the first choice is Claude's default.
+- Hitch remembers the last list it saw so it can rewrite the profile without the network.
+- The list is refreshed when connecting and when choosing models. It is not rewritten in the
+  background, because every rewrite needs a Claude restart.
+
+Decided by Greg.
+
+## 2026-11-19 — Model subtitles cannot come from the config file
+
+Claude's schema for an `inferenceModels` entry (read from the app, version 6.6395.1) is `name`,
+`labelOverride`, `behavesAs`, `supports1m`, `prefer1m`, `anthropicFamilyTier`, `isFamilyDefault`,
+`maxEffort`, `minDesktopVersion`. There is no description field. Claude does read a `description`
+(cut to 100 characters) per model from the gateway's `GET /v1/models` response during discovery,
+together with `display_name`, `behaves_as`, `max_effort_level`, `supports_1m` and
+`anthropic_family_tier`. But discovery is skipped when `inferenceModels` is set, unless
+`modelDiscoveryEnabled` is set explicitly. So subtitles need the gateway to describe its models,
+and how discovered models combine with a configured list is untested.
