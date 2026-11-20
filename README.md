@@ -19,7 +19,7 @@ You need three things:
 
 1. **A Mac** with macOS 12 or later, Apple Silicon or Intel.
 2. **The Claude desktop app.** [Download it here](https://claude.com/download) and move it to
-   Applications. You do not need to sign in to it.
+   Applications.
 3. **An Oxen API key.** Create one in your account settings on [oxen.ai](https://www.oxen.ai).
 
 ## Install
