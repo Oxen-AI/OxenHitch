@@ -293,3 +293,25 @@ signed. Decided by Greg.
 - Remove is a row in its own group; its confirmation opens in place.
 - The Remove confirmation said the key would be forgotten. It is not: the key stays in the Oxen
   settings file because the Oxen CLI uses it. The text now says so.
+
+## 2026-11-19 — First run opens a real window, and opening Hitch always shows something
+
+A first-time user saw nothing after opening Hitch, then found a Dock icon that did nothing
+("No Available Windows"). Reproduced: on a first launch the welcome window never reached the screen.
+
+- **Cause.** macOS started Hitch as a Dock app, and Hitch switched itself to menu-bar-only a
+  moment later. That switch deactivated the app, and the popover hides when it loses focus, so
+  the welcome window was dismissed as soon as it opened. The Dock icon was left behind in the
+  Dock's recent-apps area.
+- **`LSUIElement`** in `Info.plist` makes Hitch a menu-bar app from its first moment, so there is
+  no switch and no Dock icon.
+- **Before setup the window opens in the middle of the screen and stays put** when it loses
+  focus. Setting up means leaving for the browser to copy a key; the window must still be there
+  on the way back. Once set up it is the popover again and hides on blur.
+- **Opening Hitch always shows its window**: a manual launch when already set up (only a launch
+  at login stays quiet), and opening the app again while it is running (Applications, Spotlight,
+  Dock). The second also rescues anyone whose menu-bar icon is hidden behind the notch.
+- **Right after setup the home screen says where Hitch lives**, once, with a small picture of the
+  menu bar. It goes away with "Got it".
+- Checked on a sandboxed copy of the built app by asking macOS whether the window is on screen:
+  it was not before these changes, and is now, both on first launch and after reopening.

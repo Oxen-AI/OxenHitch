@@ -61,6 +61,9 @@ export function Home(props: {
   gateway: Gateway;
   onRetry: () => void;
   onOpen: (view: "models" | "connection", field?: ConnectionFocus) => void;
+  /** Just finished first-time setup, so say where Hitch can be found again. */
+  newcomer?: boolean;
+  onWelcomed?: () => void;
 }) {
   const { api, status, gateway } = props;
   const { tone, title, detail } = headline(status, gateway);
@@ -105,6 +108,8 @@ export function Home(props: {
         ) : null}
         {routing.error && <Notice>{routing.error}</Notice>}
       </section>
+
+      {props.newcomer && <WhereHitchLives onDismiss={() => props.onWelcomed?.()} />}
 
       {status.managed && (
         <Notice tone="info">
@@ -158,6 +163,36 @@ export function Home(props: {
         </button>
       </footer>
     </main>
+  );
+}
+
+/**
+ * Hitch has no Dock icon and no window of its own, which is easy to miss. Shown once,
+ * right after setup: a small picture of the menu bar with Hitch's icon picked out.
+ */
+function WhereHitchLives({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <section className="where">
+      <div className="menubar" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span className="menubar-hitch">
+          <OxenMark size={11} />
+        </span>
+        <span />
+      </div>
+      <div className="where-text">
+        <strong>Hitch lives in your menu bar</strong>
+        <p>
+          Click the Oxen x at the top of your screen to come back here. Opening Hitch from
+          Applications works too.
+        </p>
+      </div>
+      <button type="button" className="button secondary pill" onClick={onDismiss}>
+        Got it
+      </button>
+    </section>
   );
 }
 

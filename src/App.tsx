@@ -24,6 +24,15 @@ export default function App({ api, initialView = "home" }: { api: Api; initialVi
   }, [api]);
 
   const configured = status !== null && status.link !== "not_configured";
+
+  // Someone who has just finished setting up is told where Hitch lives, once.
+  const [justSetUp, setJustSetUp] = useState(false);
+  const wasConfigured = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (status === null) return;
+    if (wasConfigured.current === false && configured) setJustSetUp(true);
+    wasConfigured.current = configured;
+  }, [status, configured]);
   const baseUrl = status?.baseUrl;
   const keyHint = status?.keyHint;
 
@@ -69,7 +78,7 @@ export default function App({ api, initialView = "home" }: { api: Api; initialVi
 
   return (
     <div className="frame" ref={frame}>
-      {status && <Screen key={screenKey(status, view)} {...{ api, status, gateway, view, setView, focus, setFocus, checkGateway }} />}
+      {status && <Screen key={screenKey(status, view)} {...{ api, status, gateway, view, setView, focus, setFocus, checkGateway, justSetUp, setJustSetUp }} />}
     </div>
   );
 }
@@ -87,6 +96,8 @@ function Screen(props: {
   setView: (view: View) => void;
   focus: ConnectionFocus;
   setFocus: (focus: ConnectionFocus) => void;
+  justSetUp: boolean;
+  setJustSetUp: (value: boolean) => void;
   checkGateway: () => Promise<void>;
 }) {
   const { api, status, gateway, view, setView } = props;
@@ -107,6 +118,8 @@ function Screen(props: {
       status={status}
       gateway={gateway}
       onRetry={props.checkGateway}
+      newcomer={props.justSetUp}
+      onWelcomed={() => props.setJustSetUp(false)}
       onOpen={(next, field) => {
         if (field) props.setFocus(field);
         setView(next);

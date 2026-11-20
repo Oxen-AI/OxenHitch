@@ -1,6 +1,6 @@
 //! The menu-bar icon and the popover that drops from it.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hitch_core::hitch::{Link, Status};
@@ -23,6 +23,12 @@ const EDGE: f64 = 8.0;
 /// immediately open it again.
 static HIDDEN_AT: AtomicU64 = AtomicU64::new(0);
 const REOPEN_GUARD_MS: u64 = 250;
+
+/// True until Hitch is set up. The welcome window then stays put when it loses focus,
+/// because setting up means leaving for the browser to copy a key, and a window that
+/// vanished on the way would have to be found again by someone who has never seen where
+/// Hitch lives.
+static WELCOMING: AtomicBool = AtomicBool::new(true);
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit Hitch", true, None::<&str>)?;
@@ -58,7 +64,9 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         window.on_window_event(move |event| {
             if let WindowEvent::Focused(false) = event {
                 // Stay open while developing so the inspector can be used.
-                if !cfg!(debug_assertions) || std::env::var_os("HITCH_STAY_OPEN").is_none() {
+                let stay = WELCOMING.load(Ordering::SeqCst)
+                    || (cfg!(debug_assertions) && std::env::var_os("HITCH_STAY_OPEN").is_some());
+                if !stay {
                     HIDDEN_AT.store(now_ms(), Ordering::SeqCst);
                     let _ = popover.hide();
                 }
@@ -98,6 +106,7 @@ fn follow_the_menu_bar(_window: &WebviewWindow) {}
 /// The icon is always the full-strength Oxen mark. It gains a slash when Oxen is set up
 /// but Claude is not using it.
 pub fn reflect(app: &AppHandle, status: &Status) {
+    WELCOMING.store(status.link == Link::NotConfigured, Ordering::SeqCst);
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
     };
@@ -115,30 +124,71 @@ pub fn reflect(app: &AppHandle, status: &Status) {
     let _ = tray.set_tooltip(Some(tooltip));
 }
 
-/// Opens the popover once the menu-bar icon has a position. Used on first launch.
+/// Opens Hitch's window when the app is launched by hand.
 ///
-/// Right after launch the icon is not laid out yet and reports a placeholder position,
-/// so wait for one that is actually in a menu bar. If that never comes, open in the
-/// top-right corner of the main screen, which is where menu-bar icons live.
-pub fn show_when_ready(app: AppHandle) {
+/// Before setup it opens in the middle of the screen, like any app's first window, and
+/// straight away. Afterwards it drops from the menu-bar icon. Right after launch the icon
+/// is not laid out yet and reports a placeholder position, so wait for one that is
+/// actually in a menu bar; if that never comes, use the top-right corner of the main
+/// screen, which is where menu-bar icons live.
+pub fn open_on_launch(app: AppHandle) {
+    if WELCOMING.load(Ordering::SeqCst) {
+        show_centered(&app);
+        return;
+    }
     std::thread::spawn(move || {
         for _ in 0..30 {
             std::thread::sleep(Duration::from_millis(150));
-            let rect = app
-                .tray_by_id(TRAY_ID)
-                .and_then(|tray| tray.rect().ok().flatten());
-            let window = app.get_webview_window(WINDOW);
-            if let (Some(rect), Some(window)) = (rect, window) {
-                if in_menu_bar(&window, &rect) {
-                    let handle = app.clone();
-                    let _ = app.run_on_main_thread(move || show(&handle, rect));
-                    return;
-                }
+            if let Some(rect) = icon_rect(&app) {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || show(&handle, rect));
+                return;
             }
         }
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || show_in_corner(&handle));
     });
+}
+
+/// Brings the window back when Hitch is opened again while it is already running: from
+/// Applications, Spotlight or the Dock. Without this, opening the app did nothing, and
+/// the menu-bar icon was the only way in.
+pub fn reopen(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW) else {
+        return;
+    };
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.set_focus();
+    } else if WELCOMING.load(Ordering::SeqCst) {
+        show_centered(app);
+    } else if let Some(rect) = icon_rect(app) {
+        show(app, rect);
+    } else {
+        show_in_corner(app);
+    }
+}
+
+/// Where the menu-bar icon is, once it really is in a menu bar.
+fn icon_rect(app: &AppHandle) -> Option<Rect> {
+    let rect = app.tray_by_id(TRAY_ID)?.rect().ok().flatten()?;
+    let window = app.get_webview_window(WINDOW)?;
+    in_menu_bar(&window, &rect).then_some(rect)
+}
+
+fn show_centered(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW) else {
+        return;
+    };
+    // A little above the middle, where the eye lands first.
+    if let (Ok(Some(monitor)), Ok(size)) = (window.primary_monitor(), window.outer_size()) {
+        let x = f64::from(monitor.position().x)
+            + (f64::from(monitor.size().width) - f64::from(size.width)) / 2.0;
+        let y = f64::from(monitor.position().y)
+            + (f64::from(monitor.size().height) - f64::from(size.height)) / 3.0;
+        let _ = window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 /// How far down from the top of a screen a menu-bar icon can sit, in points.

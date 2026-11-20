@@ -39,8 +39,9 @@ pub fn run() {
             let status = hitch.status();
             tray::reflect(app.handle(), &status);
             let launched_at_login = std::env::args().any(|arg| arg == HIDDEN_FLAG);
-            if !launched_at_login && status.link == hitch_core::hitch::Link::NotConfigured {
-                tray::show_when_ready(app.handle().clone());
+            // Opening an app should show something. Only a launch at login stays quiet.
+            if !launched_at_login {
+                tray::open_on_launch(app.handle().clone());
             }
 
             // Add Oxen's models to Claude as soon as Hitch starts, without waiting for the
@@ -71,8 +72,16 @@ pub fn run() {
             commands::hide,
             commands::quit,
         ])
-        .run(tauri::generate_context!())
-        .expect("Hitch failed to start");
+        .build(tauri::generate_context!())
+        .expect("Hitch failed to start")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::reopen(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 /// With `HITCH_CLAUDE_DIR` set, Hitch runs in a sandbox: it writes Claude config to that

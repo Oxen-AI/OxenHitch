@@ -59,6 +59,22 @@ describe("first run", () => {
     expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
   });
 
+  it("says where to find Hitch again once it is set up, until dismissed", async () => {
+    const { user } = open();
+    await user.type(await screen.findByLabelText("Oxen API key"), "oxen_key_1234");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByText("Hitch lives in your menu bar")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Got it" }));
+    expect(screen.queryByText("Hitch lives in your menu bar")).not.toBeInTheDocument();
+  });
+
+  it("does not explain the menu bar to someone already set up", async () => {
+    open({ status: connectedStatus });
+    await screen.findByRole("heading", { name: "Claude is running on Oxen" });
+    expect(screen.queryByText("Hitch lives in your menu bar")).not.toBeInTheDocument();
+  });
+
   it("connects when Enter is pressed in the key field", async () => {
     const { user, calls } = open();
     await user.type(await screen.findByLabelText("Oxen API key"), "k{Enter}");

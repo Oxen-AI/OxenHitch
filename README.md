@@ -27,14 +27,17 @@ You need three things:
 1. Open the [latest release](https://github.com/Oxen-AI/OxenHitch/releases/latest) and download
    the `.dmg` file under **Assets**.
 2. Open the `.dmg` and drag **Hitch** into **Applications**.
-3. Open Hitch from Applications. It has no window of its own: its icon, the Oxen **x**, appears
-   in the menu bar at the top right of your screen.
+3. Open Hitch from Applications. A small welcome window opens in the middle of your screen.
+
+Hitch is a menu-bar app: it has no Dock icon. Once it is set up, you reach it from the Oxen **x**
+in the menu bar at the top right of your screen, or by opening Hitch from Applications again.
 
 ## Set up
 
 ### 1. Paste your Oxen API key
 
-Click the Oxen **x** in the menu bar, paste your key and click **Connect**. Hitch checks the key
+Paste your key into the welcome window and click **Connect**. The window stays open while you
+fetch the key from your browser. Hitch checks the key
 with Oxen before it changes anything. If the Oxen command-line tool already saved a key on this
 Mac, Hitch finds it and there is nothing to paste.
 
