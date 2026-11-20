@@ -280,14 +280,16 @@ signed. Decided by Greg.
 
 ## 2026-11-19 — Connection settings are edited in place
 
-- Host and API key are rows in a group, like the home screen they are opened from, with the
-  value typed on the right. The boxed fields and their labels are gone.
-- **Save** lives in the header and only appears while there is a change to save, the same place
-  Models puts **Done**. Before, a large disabled button sat in the middle of the screen whenever
-  nothing had changed, which is most of the time.
-- One caption under the group says what will happen: which key a new host will use, or that
-  pasting replaces the saved key. That guidance used to be crammed into the key's placeholder.
-- A test message answers with "Answered" in the row and the model and host on a line beneath, so
-  a long model name can no longer wrap the row.
+- Host and API key are rows in a group with a real text field on the right, as in macOS System
+  Settings. A first version drew the values as bare right-aligned text, which did not look
+  editable; the fields now have a visible well and line up down the group.
+- The saved key shows as a filled field (`••••••••1234`). Entering the field swaps that for
+  "Paste a new key", so the instruction appears exactly when it is useful.
+- **Save** is a small button in the header that only appears while there is a change to save.
+  Before, a large disabled button sat in the middle of the screen most of the time.
+- A caption appears only when a change needs explaining (which key a new host will use).
+- The test message has a real **Send** button, and its answer gets its own line in the group, so
+  a long model name can no longer wrap the row and hovering no longer paints half the group.
+- Remove is a row in its own group; its confirmation opens in place.
 - The Remove confirmation said the key would be forgotten. It is not: the key stays in the Oxen
   settings file because the Oxen CLI uses it. The text now says so.

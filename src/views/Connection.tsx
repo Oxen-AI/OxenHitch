@@ -37,14 +37,13 @@ export function Connection(props: { api: Api; status: Status; focus: ConnectionF
   };
 
   const testedHost = hostOf(status.baseUrl);
+  // Only speak up when a change needs explaining.
   const caption =
-    saved && newKey === ""
-      ? `Found your Oxen key ending in ${saved} for ${newHost}.`
-      : newHost !== "" && newKey === ""
-        ? `Your current key will be used for ${newHost}.`
-        : status.keyHint
-          ? "Paste a new key to replace the saved one."
-          : "Paste your Oxen API key.";
+    newHost === "" || newKey !== ""
+      ? null
+      : saved
+        ? `Found your Oxen key ending in ${saved} for ${newHost}.`
+        : `Your current key will be used for ${newHost}.`;
 
   return (
     <main className="screen sub">
@@ -53,14 +52,14 @@ export function Connection(props: { api: Api; status: Status; focus: ConnectionF
         onBack={onDone}
         action={
           dirty ? (
-            <button type="button" className="text-link strong" disabled={save.busy} onClick={submit}>
+            <button type="button" className="button primary pill" disabled={save.busy} onClick={submit}>
               {save.busy ? <Spinner /> : "Save"}
             </button>
           ) : null
         }
       />
 
-      <div>
+      <div className="stack">
         <div className="group">
           <RowField
             label="Host"
@@ -74,55 +73,54 @@ export function Connection(props: { api: Api; status: Status; focus: ConnectionF
             label="API key"
             secret
             autoFocus={focus === "key"}
-            placeholder={status.keyHint ? `••••${status.keyHint}` : "Not set"}
+            saved={status.keyHint ? `••••••••${status.keyHint}` : undefined}
+            placeholder={status.keyHint ? "Paste a new key" : "Paste your key"}
             value={key}
             onChange={setKey}
             onEnter={submit}
           />
         </div>
-        <p className="caption" role="status">
-          {caption}
-        </p>
+        {caption && (
+          <p className="caption" role="status">
+            {caption}
+          </p>
+        )}
         {save.error && <Notice>{save.error}</Notice>}
       </div>
 
       <div className="group">
-        <button
-          type="button"
-          className="row row-link"
-          aria-label="Send a test message"
-          disabled={test.busy}
-          onClick={() => void test.run()}
-        >
-          <span className="row-label">Send a test message</span>
-          {test.busy ? (
-            <Spinner />
-          ) : answeredBy ? (
-            <span className="row-value good">
-              <Check />
-              <span>Answered</span>
-            </span>
-          ) : (
-            <span className="row-value">Send</span>
-          )}
-        </button>
-        {answeredBy && !test.busy && <p className="row-help">{`${answeredBy} replied through ${testedHost}.`}</p>}
-        {test.error && <p className="row-help bad">{test.error}</p>}
+        <div className="row">
+          <span className="row-label">Test message</span>
+          <button
+            type="button"
+            className="button secondary pill"
+            aria-label="Send a test message"
+            disabled={test.busy}
+            onClick={() => void test.run()}
+          >
+            {test.busy ? <Spinner /> : answeredBy ? "Send again" : "Send"}
+          </button>
+        </div>
+        {answeredBy && !test.busy && (
+          <p className="row-result good">
+            <Check />
+            <span>{`${answeredBy} answered through ${testedHost}`}</span>
+          </p>
+        )}
+        {test.error && !test.busy && <p className="row-result bad">{test.error}</p>}
       </div>
 
-      <div className="danger">
+      <div className="group">
         {confirming ? (
-          <>
-            <p className="detail">
-              Claude goes back to how it was before Hitch. Your Oxen key stays on this Mac.
-            </p>
-            <div className="danger-actions">
-              <button type="button" className="button secondary compact" onClick={() => setConfirming(false)}>
+          <div className="confirm">
+            <p className="detail">Claude goes back to how it was before Hitch. Your Oxen key stays on this Mac.</p>
+            <div className="confirm-actions">
+              <button type="button" className="button secondary pill" onClick={() => setConfirming(false)}>
                 Cancel
               </button>
               <button
                 type="button"
-                className="button destructive compact"
+                className="button destructive pill"
                 disabled={remove.busy}
                 onClick={() => void remove.run()}
               >
@@ -130,9 +128,9 @@ export function Connection(props: { api: Api; status: Status; focus: ConnectionF
               </button>
             </div>
             {remove.error && <Notice>{remove.error}</Notice>}
-          </>
+          </div>
         ) : (
-          <button type="button" className="text-link destructive-link" onClick={() => setConfirming(true)}>
+          <button type="button" className="row row-link row-destructive" onClick={() => setConfirming(true)}>
             Remove Oxen from Claude…
           </button>
         )}

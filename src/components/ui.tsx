@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import oxenMark from "../assets/oxen-x-white.svg";
 
@@ -132,30 +132,37 @@ export function Field(props: {
 }
 
 /**
- * A field that is a row in a group: its name on the left, its value typed on the right.
- * Used where settings are edited in place, so the screen reads like the list it came from.
+ * A setting edited in place: its name on the left, a text field on the right, as in
+ * macOS System Settings. `saved` stands in for a value that exists but is not shown (a
+ * key): it fills the field until the field is entered, then gives way to `placeholder`.
  */
 export function RowField(props: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  saved?: string;
   secret?: boolean;
   autoFocus?: boolean;
   onEnter?: () => void;
 }) {
+  const [focused, setFocused] = useState(false);
+  const showSaved = props.saved !== undefined && !focused;
   return (
     <label className="row row-field">
       <span className="row-label">{props.label}</span>
       <input
+        className={showSaved ? "shows-saved" : undefined}
         type={props.secret ? "password" : "text"}
         value={props.value}
-        placeholder={props.placeholder}
+        placeholder={showSaved ? props.saved : props.placeholder}
         autoFocus={props.autoFocus}
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onChange={(event) => props.onChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") props.onEnter?.();

@@ -332,6 +332,13 @@ describe("connection settings", () => {
     return view;
   }
 
+  async function openHost() {
+    const view = open({ status: connectedStatus });
+    await view.user.click(await screen.findByRole("button", { name: /^Host/ }));
+    await screen.findByRole("heading", { name: "Connection" });
+    return view;
+  }
+
   it("replaces the key", async () => {
     const { user, calls } = await openConnection();
     // Nothing to save until something changes.
@@ -391,8 +398,21 @@ describe("connection settings", () => {
   it("sends a test message", async () => {
     const { user } = await openConnection();
     await user.click(screen.getByRole("button", { name: "Send a test message" }));
-    expect(await screen.findByText("Answered")).toBeVisible();
-    expect(screen.getByText("claude-opus-5-5 replied through hub.oxen.ai.")).toBeVisible();
+    expect(await screen.findByText("claude-opus-5-5 answered through hub.oxen.ai")).toBeVisible();
+  });
+
+  it("shows the saved key as filled in, and asks for a new one once the field is entered", async () => {
+    const { user } = await openHost();
+    const key = screen.getByLabelText("API key");
+    expect(key).toHaveAttribute("placeholder", "••••••••1234");
+
+    await user.click(key);
+    expect(key).toHaveAttribute("placeholder", "Paste a new key");
+  });
+
+  it("says nothing extra until there is something to say", async () => {
+    await openHost();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("offers Save only while there is a change to save", async () => {
