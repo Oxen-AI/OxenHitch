@@ -348,3 +348,12 @@ not open, with the reason macOS gave. Waiting for Claude to quit is still 20 sec
 The error itself was not captured, and an update cannot be staged on demand, so this is tested
 with a scripted Claude that refuses to open at first (`core/src/claude/process.rs`), and by
 restarting the real Claude with `cargo run -p hitch-core --example restart`.
+
+## 2026-11-20 — The README asks for Developer Mode first
+
+Turning on Claude's Developer Mode is now step 1 of Set up, before Hitch is opened. The project
+owner's understanding is that Claude does not use a gateway until Developer Mode is on. This has
+still not been tried on a Mac where Developer Mode was never enabled, so the step is there to be
+safe; if that test shows Hitch works without it, the step can go back to being optional.
+
+"Set up by hand" keeps the rest of the manual steps and points to step 1 for Developer Mode.
