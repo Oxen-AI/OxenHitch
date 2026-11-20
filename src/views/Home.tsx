@@ -35,6 +35,13 @@ function headline(status: Status, gateway: Gateway): { tone: Tone; title: string
       detail: "Oxen is switched off. Your key is saved.",
     };
   }
+  if (gateway.state === "no_key") {
+    return {
+      tone: "trouble",
+      title: status.claudeRunning ? "Claude is running on Oxen" : "Claude is set to use Oxen",
+      detail: "Hitch needs your key again to check on Oxen.",
+    };
+  }
   if (gateway.state === "invalid_key" || gateway.state === "unreachable" || gateway.state === "failed") {
     return {
       tone: "trouble",
@@ -182,6 +189,8 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
         const count = gateway.models.length;
         return { dot: "good", text: `Online · ${count} ${count === 1 ? "model" : "models"}` };
       }
+      case "no_key":
+        return { dot: "warn", text: "Key needed" };
       case "invalid_key":
         return { dot: "bad", text: "Key not accepted" };
       case "unreachable":
@@ -190,7 +199,7 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
         return { dot: "warn", text: "Not responding" };
     }
   })();
-  const failed = gateway.state !== "ok" && gateway.state !== "checking";
+  const failed = gateway.state !== "ok" && gateway.state !== "checking" && gateway.state !== "no_key";
 
   return (
     <>
@@ -206,6 +215,9 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
           </button>
         )}
       </div>
+      {gateway.state === "no_key" && (
+        <p className="row-help">Hitch couldn't read your saved key. Enter your key again under API key.</p>
+      )}
       {gateway.state === "invalid_key" && (
         <p className="row-help">Oxen no longer accepts this key. Replace it under API key.</p>
       )}

@@ -8,8 +8,8 @@ import { NoClaude, Welcome } from "./views/Welcome";
 
 type View = "home" | "models" | "connection";
 
-/** What we know about the gateway: still asking, or the answer. */
-export type Gateway = { state: "checking" } | Check;
+/** What we know about the gateway: still asking, no key to ask with, or the answer. */
+export type Gateway = { state: "checking" } | { state: "no_key" } | Check;
 
 export default function App({ api }: { api: Api }) {
   const [status, setStatus] = useState<Status | null>(null);
@@ -30,7 +30,7 @@ export default function App({ api }: { api: Api }) {
     setGateway({ state: "checking" });
     try {
       const result = await api.check();
-      if (result) setGateway(result);
+      setGateway(result ?? { state: "no_key" });
     } catch {
       setGateway({ state: "failed", message: "The gateway could not be checked." });
     }

@@ -22,6 +22,8 @@ export const fakeModels: Model[] = [
 export interface FakeOptions {
   status?: Partial<Status>;
   check?: Check;
+  /** The saved key cannot be read (keychain denied, or the key is gone). */
+  keyUnreadable?: boolean;
   /** Milliseconds each call takes, to see loading states. */
   latency?: number;
 }
@@ -63,7 +65,7 @@ export function createFakeApi(options: FakeOptions = {}) {
     },
     async check() {
       await record("check");
-      return status.keyHint ? check : null;
+      return status.keyHint && !options.keyUnreadable ? check : null;
     },
     async connect({ apiKey, baseUrl }) {
       await record(`connect:${apiKey ?? ""}:${baseUrl ?? ""}`);

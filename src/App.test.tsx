@@ -144,6 +144,13 @@ describe("once connected", () => {
     expect(await screen.findByText("Key not accepted")).toBeVisible();
   });
 
+  it("asks for the key again when the saved one cannot be read", async () => {
+    open({ status: connectedStatus, keyUnreadable: true });
+    expect(await screen.findByText("Key needed")).toBeVisible();
+    expect(screen.getByText(/Enter your key again under API key/)).toBeVisible();
+    expect(screen.queryByText("Checking…")).not.toBeInTheDocument();
+  });
+
   it("says so when the gateway cannot be reached", async () => {
     open({
       status: connectedStatus,
