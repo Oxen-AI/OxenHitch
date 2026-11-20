@@ -110,7 +110,10 @@ pub fn apply_profile(paths: &ClaudePaths, id: &str, profile: &GatewayProfile) ->
     let mut desktop = read_object_strict(&paths.desktop_config())?;
     let mut meta = read_object(&paths.meta_file()).unwrap_or_default();
 
-    match body.get_mut(CLAUDE_AI_IMPORT).and_then(Value::as_object_mut) {
+    match body
+        .get_mut(CLAUDE_AI_IMPORT)
+        .and_then(Value::as_object_mut)
+    {
         Some(import) => {
             import.insert("enabled".into(), json!(true));
         }
@@ -415,7 +418,10 @@ mod tests {
             read(paths.meta_file()),
             json!({"appliedId": id, "entries": [{"id": id, "name": "Oxen"}]})
         );
-        assert_eq!(read(paths.desktop_config()), json!({"deploymentMode": "3p"}));
+        assert_eq!(
+            read(paths.desktop_config()),
+            json!({"deploymentMode": "3p"})
+        );
     }
 
     #[test]
@@ -430,7 +436,10 @@ mod tests {
         assert_eq!(meta["appliedId"], json!(id));
         assert_eq!(meta["entries"][0], json!({"id": OTHER, "name": "Default"}));
         assert_eq!(meta["entries"].as_array().unwrap().len(), 2);
-        assert_eq!(read(paths.profile_file(OTHER))["inferenceProvider"], "bedrock");
+        assert_eq!(
+            read(paths.profile_file(OTHER))["inferenceProvider"],
+            "bedrock"
+        );
         assert_eq!(
             read(paths.desktop_config()),
             json!({"deploymentMode": "3p", "preferences": {"sidebarMode": "chat"}})
@@ -443,7 +452,10 @@ mod tests {
         let id = new_profile_id();
         apply_profile(&paths, &id, &oxen(Some("k"))).unwrap();
         apply_profile(&paths, &id, &oxen(Some("k"))).unwrap();
-        assert_eq!(read(paths.meta_file())["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            read(paths.meta_file())["entries"].as_array().unwrap().len(),
+            1
+        );
     }
 
     #[test]
@@ -461,7 +473,9 @@ mod tests {
 
         profile.models.clear();
         apply_profile(&paths, &id, &profile).unwrap();
-        assert!(read(paths.profile_file(&id)).get("inferenceModels").is_none());
+        assert!(read(paths.profile_file(&id))
+            .get("inferenceModels")
+            .is_none());
     }
 
     #[test]
@@ -479,7 +493,9 @@ mod tests {
 
         profile.models.clear();
         apply_profile(&paths, &id, &profile).unwrap();
-        assert!(read(paths.profile_file(&id)).get("modelDiscoveryEnabled").is_none());
+        assert!(read(paths.profile_file(&id))
+            .get("modelDiscoveryEnabled")
+            .is_none());
         assert!(!discovery_enabled(&paths, &id));
     }
 
@@ -512,7 +528,10 @@ mod tests {
         );
         assert_eq!(
             snapshot(&paths).applied.unwrap().models,
-            ["claude-opus-5-5", "claude-via-0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61"]
+            [
+                "claude-opus-5-5",
+                "claude-via-0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61"
+            ]
         );
     }
 
@@ -533,7 +552,10 @@ mod tests {
 
         let after = read(paths.profile_file(&id));
         assert_eq!(after["inferenceGatewayApiKey"], "__sealed__:v1:abc");
-        assert_eq!(after["inferenceGatewayBaseUrl"], "http://localhost:3001/api/ai");
+        assert_eq!(
+            after["inferenceGatewayBaseUrl"],
+            "http://localhost:3001/api/ai"
+        );
         assert_eq!(after["somethingClaudeAdded"], true);
     }
 
@@ -593,7 +615,10 @@ mod tests {
         fs::write(paths.desktop_config(), "{ not json").unwrap();
 
         assert!(set_mode(&paths, Some(DeploymentMode::ThirdParty)).is_err());
-        assert_eq!(fs::read_to_string(paths.desktop_config()).unwrap(), "{ not json");
+        assert_eq!(
+            fs::read_to_string(paths.desktop_config()).unwrap(),
+            "{ not json"
+        );
     }
 
     #[test]

@@ -61,7 +61,11 @@ impl ClaudeApp for SystemClaude {
         system
             .processes()
             .values()
-            .filter(|process| process.exe().is_some_and(|exe| executables.iter().any(|e| e == exe)))
+            .filter(|process| {
+                process
+                    .exe()
+                    .is_some_and(|exe| executables.iter().any(|e| e == exe))
+            })
             .map(|process| process.start_time())
             .min()
     }
@@ -132,7 +136,9 @@ fn open() -> Result<()> {
 #[cfg(not(target_os = "macos"))]
 fn quit() -> Result<()> {
     let _ = BUNDLE_ID;
-    Err(Error::Process("Please quit Claude yourself, then open it again.".into()))
+    Err(Error::Process(
+        "Please quit Claude yourself, then open it again.".into(),
+    ))
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -256,7 +262,10 @@ mod tests {
                 || self.is_running(),
                 || self.request("quit", self.obeys_quit, false),
                 || {
-                    assert!(!self.running.get(), "opened while the old Claude was still running");
+                    assert!(
+                        !self.running.get(),
+                        "opened while the old Claude was still running"
+                    );
                     self.request("open", self.obeys_open, true)
                 },
                 PATIENCE,
@@ -270,7 +279,10 @@ mod tests {
         let claude = Scripted::new(true);
         claude.restart().unwrap();
         assert_eq!(*claude.log.borrow(), ["quit", "open"]);
-        assert!(claude.running.get(), "restart returned before Claude was back");
+        assert!(
+            claude.running.get(),
+            "restart returned before Claude was back"
+        );
     }
 
     #[test]
@@ -286,7 +298,11 @@ mod tests {
         let mut claude = Scripted::new(true);
         claude.obeys_quit = false;
         let err = claude.restart().unwrap_err();
-        assert_eq!(*claude.log.borrow(), ["quit"], "must not open a second copy");
+        assert_eq!(
+            *claude.log.borrow(),
+            ["quit"],
+            "must not open a second copy"
+        );
         assert!(err.to_string().contains("did not quit"));
     }
 

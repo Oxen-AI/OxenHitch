@@ -59,7 +59,9 @@ pub async fn connect(
     base_url: Option<String>,
 ) -> CommandResult<Status> {
     let hitch = hitch.inner().clone();
-    let api_key = api_key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
+    let api_key = api_key
+        .map(|k| k.trim().to_string())
+        .filter(|k| !k.is_empty());
 
     let url = match &base_url {
         Some(url) => gateway::normalize_base_url(url).map_err(sentence)?,
@@ -67,7 +69,9 @@ pub async fn connect(
     };
     let stored = {
         let hitch = hitch.clone();
-        blocking(move || Ok(hitch.api_key())).await.map_err(sentence)?
+        blocking(move || Ok(hitch.api_key()))
+            .await
+            .map_err(sentence)?
     };
     let Some(key) = api_key.clone().or(stored) else {
         return Err("Paste your Oxen API key to connect.".into());
@@ -92,7 +96,11 @@ pub async fn connect(
 }
 
 #[tauri::command]
-pub async fn set_routing(app: AppHandle, hitch: Shared<'_>, enabled: bool) -> CommandResult<Status> {
+pub async fn set_routing(
+    app: AppHandle,
+    hitch: Shared<'_>,
+    enabled: bool,
+) -> CommandResult<Status> {
     let hitch = hitch.inner().clone();
     changed(&app, blocking(move || hitch.set_routing(enabled)).await)
 }

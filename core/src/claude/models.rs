@@ -126,7 +126,12 @@ mod tests {
     fn catalog() -> Vec<Model> {
         vec![
             model("gpt-5-mini", "GPT 5 Mini", "openai", Some(UUID)),
-            model("claude-opus-5-5", "Claude Opus 5.5", "anthropic", Some("11111111-2222-3333-4444-555555555555")),
+            model(
+                "claude-opus-5-5",
+                "Claude Opus 5.5",
+                "anthropic",
+                Some("11111111-2222-3333-4444-555555555555"),
+            ),
             model("kimi-k3", "Kimi K3", "moonshot", None),
             model("claude-haiku-5-5", "Claude Haiku 5.5", "anthropic", None),
         ]
@@ -175,12 +180,18 @@ mod tests {
     #[test]
     fn a_claude_model_is_recognized_even_without_a_maker() {
         // A plain Anthropic-style list says nothing about who makes each model.
-        assert_eq!(entry_for(&Model::named("claude-sonnet-5")), ModelEntry::from("claude-sonnet-5"));
+        assert_eq!(
+            entry_for(&Model::named("claude-sonnet-5")),
+            ModelEntry::from("claude-sonnet-5")
+        );
     }
 
     #[test]
     fn with_nothing_chosen_every_model_is_listed_anthropics_first() {
-        let names: Vec<String> = entries_for(&[], &catalog()).into_iter().map(|e| e.name).collect();
+        let names: Vec<String> = entries_for(&[], &catalog())
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
         assert_eq!(
             names,
             [
@@ -195,14 +206,20 @@ mod tests {
     #[test]
     fn a_choice_is_listed_in_the_order_chosen() {
         let chosen = ["kimi-k3".to_string(), "claude-opus-5-5".to_string()];
-        let names: Vec<String> = entries_for(&chosen, &catalog()).into_iter().map(|e| e.name).collect();
+        let names: Vec<String> = entries_for(&chosen, &catalog())
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
         assert_eq!(names, ["claude-via-3k-imik", "claude-opus-5-5"]);
     }
 
     #[test]
     fn a_chosen_model_oxen_no_longer_lists_keeps_its_plain_name() {
         let chosen = ["retired-model".to_string()];
-        assert_eq!(entries_for(&chosen, &catalog()), vec![ModelEntry::from("retired-model")]);
+        assert_eq!(
+            entries_for(&chosen, &catalog()),
+            vec![ModelEntry::from("retired-model")]
+        );
     }
 
     #[test]

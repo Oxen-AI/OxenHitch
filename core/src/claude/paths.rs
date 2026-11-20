@@ -146,7 +146,10 @@ mod tests {
         assert!(!paths.managed(), "a missing source is not managed");
 
         fs::write(&plist, b"bplist00\x01claudeAiImport\x02").unwrap();
-        assert!(!paths.managed(), "app-behavior keys alone do not manage inference");
+        assert!(
+            !paths.managed(),
+            "app-behavior keys alone do not manage inference"
+        );
 
         fs::write(&plist, b"bplist00\x01inferenceProvider\x02gateway").unwrap();
         assert!(paths.managed());

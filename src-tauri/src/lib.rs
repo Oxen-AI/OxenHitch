@@ -85,7 +85,9 @@ fn build_hitch(app_data_dir: PathBuf) -> Hitch {
         if sandbox {
             (
                 paths.data_dir.with_file_name("hitch-state.json"),
-                Box::new(OxenConfig::new(paths.data_dir.with_file_name("oxen-auth_config.toml"))),
+                Box::new(OxenConfig::new(
+                    paths.data_dir.with_file_name("oxen-auth_config.toml"),
+                )),
                 Box::new(FakeClaude::running_since(1)),
             )
         } else {

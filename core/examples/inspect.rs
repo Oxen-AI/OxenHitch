@@ -24,7 +24,14 @@ fn main() {
     let keys = OxenConfig::for_user();
     for host in ["hub.oxen.ai", "localhost:3001", "dev.hub.oxen.ai"] {
         let hint = keys.get(host).ok().flatten().map(|key| {
-            let tail: String = key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+            let tail: String = key
+                .chars()
+                .rev()
+                .take(4)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
             format!("saved, ends in {tail}")
         });
         println!("key for {host}: {}", hint.unwrap_or_else(|| "none".into()));

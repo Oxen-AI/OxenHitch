@@ -108,7 +108,10 @@ impl SecretStore for OxenConfig {
 impl OxenConfig {
     /// Atomic, and owner-only: this file holds API keys.
     fn write(&self, text: &str) -> Result<()> {
-        let dir = self.path.parent().expect("the auth file lives in a directory");
+        let dir = self
+            .path
+            .parent()
+            .expect("the auth file lives in a directory");
         fs::create_dir_all(dir)?;
         let temp = dir.join(format!(".hitch-{}.tmp", uuid::Uuid::new_v4()));
         let written = (|| {
@@ -178,8 +181,14 @@ auth_token = "hub-token"
     #[test]
     fn the_key_the_cli_saved_for_a_host_is_found() {
         let (_dir, config, _) = store(Some(CLI_FILE));
-        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
-        assert_eq!(config.get("localhost:3001").unwrap().as_deref(), Some("local-token"));
+        assert_eq!(
+            config.get("hub.oxen.ai").unwrap().as_deref(),
+            Some("hub-token")
+        );
+        assert_eq!(
+            config.get("localhost:3001").unwrap().as_deref(),
+            Some("local-token")
+        );
     }
 
     #[test]
@@ -206,11 +215,21 @@ auth_token = "hub-token"
 
         config.set("hub.oxen.ai", "new-hub-token").unwrap();
 
-        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("new-hub-token"));
-        assert_eq!(config.get("localhost:3001").unwrap().as_deref(), Some("local-token"));
+        assert_eq!(
+            config.get("hub.oxen.ai").unwrap().as_deref(),
+            Some("new-hub-token")
+        );
+        assert_eq!(
+            config.get("localhost:3001").unwrap().as_deref(),
+            Some("local-token")
+        );
         let text = fs::read_to_string(path).unwrap();
         assert!(text.contains(r#"default_host = "hub.oxen.ai""#));
-        assert_eq!(text.matches("[[host_configs]]").count(), 2, "no duplicate entry");
+        assert_eq!(
+            text.matches("[[host_configs]]").count(),
+            2,
+            "no duplicate entry"
+        );
     }
 
     #[test]
@@ -219,9 +238,21 @@ auth_token = "hub-token"
 
         config.set("dev.hub.oxen.ai", "dev-token").unwrap();
 
-        assert_eq!(config.get("dev.hub.oxen.ai").unwrap().as_deref(), Some("dev-token"));
-        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
-        assert_eq!(fs::read_to_string(path).unwrap().matches("[[host_configs]]").count(), 3);
+        assert_eq!(
+            config.get("dev.hub.oxen.ai").unwrap().as_deref(),
+            Some("dev-token")
+        );
+        assert_eq!(
+            config.get("hub.oxen.ai").unwrap().as_deref(),
+            Some("hub-token")
+        );
+        assert_eq!(
+            fs::read_to_string(path)
+                .unwrap()
+                .matches("[[host_configs]]")
+                .count(),
+            3
+        );
     }
 
     #[test]
@@ -230,13 +261,19 @@ auth_token = "hub-token"
 
         config.set("hub.oxen.ai", "first-token").unwrap();
 
-        assert_eq!(config.get("hub.oxen.ai").unwrap().as_deref(), Some("first-token"));
+        assert_eq!(
+            config.get("hub.oxen.ai").unwrap().as_deref(),
+            Some("first-token")
+        );
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.contains(r#"default_host = "hub.oxen.ai""#));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
         }
     }
 
@@ -254,7 +291,10 @@ auth_token = "hub-token"
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
         }
     }
 }

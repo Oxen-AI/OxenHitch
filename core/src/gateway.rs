@@ -67,7 +67,10 @@ pub fn normalize_base_url(input: &str) -> Result<String> {
         None => (None, text),
     };
     let rest = rest.trim_end_matches('/');
-    let rest = rest.strip_suffix("/v1").unwrap_or(rest).trim_end_matches('/');
+    let rest = rest
+        .strip_suffix("/v1")
+        .unwrap_or(rest)
+        .trim_end_matches('/');
     let (host, path) = match rest.find('/') {
         Some(slash) => rest.split_at(slash),
         None => (rest, ""),
@@ -212,7 +215,12 @@ async fn catalog(base_url: &str, api_key: &str) -> Option<Vec<Model>> {
 
 /// A model from Oxen's list, if it answers in text and can be run.
 fn chat_model(item: &Value) -> Option<Model> {
-    let text = |value: Option<&Value>| value.and_then(Value::as_str).filter(|s| !s.is_empty()).map(String::from);
+    let text = |value: Option<&Value>| {
+        value
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+    };
     let id = text(item.get("id"))?;
     let writes_text = item
         .pointer("/capabilities/output")
@@ -270,11 +278,26 @@ mod tests {
     #[test]
     fn base_urls_are_tidied() {
         let ok = |input: &str| normalize_base_url(input).unwrap();
-        assert_eq!(ok(" https://hub.oxen.ai/api/ai/ "), "https://hub.oxen.ai/api/ai");
-        assert_eq!(ok("https://hub.oxen.ai/api/ai/v1"), "https://hub.oxen.ai/api/ai");
-        assert_eq!(ok("https://hub.oxen.ai/api/ai/v1/"), "https://hub.oxen.ai/api/ai");
-        assert_eq!(ok("http://localhost:3001/api/ai"), "http://localhost:3001/api/ai");
-        assert_eq!(ok("https://proxy.example.com/oxen"), "https://proxy.example.com/oxen");
+        assert_eq!(
+            ok(" https://hub.oxen.ai/api/ai/ "),
+            "https://hub.oxen.ai/api/ai"
+        );
+        assert_eq!(
+            ok("https://hub.oxen.ai/api/ai/v1"),
+            "https://hub.oxen.ai/api/ai"
+        );
+        assert_eq!(
+            ok("https://hub.oxen.ai/api/ai/v1/"),
+            "https://hub.oxen.ai/api/ai"
+        );
+        assert_eq!(
+            ok("http://localhost:3001/api/ai"),
+            "http://localhost:3001/api/ai"
+        );
+        assert_eq!(
+            ok("https://proxy.example.com/oxen"),
+            "https://proxy.example.com/oxen"
+        );
     }
 
     #[test]
@@ -283,7 +306,10 @@ mod tests {
         assert_eq!(ok("hub.oxen.ai"), "https://hub.oxen.ai/api/ai");
         assert_eq!(ok(" staging.oxen.ai/ "), "https://staging.oxen.ai/api/ai");
         assert_eq!(ok("https://hub.oxen.ai"), "https://hub.oxen.ai/api/ai");
-        assert_eq!(ok("oxen.internal:8443"), "https://oxen.internal:8443/api/ai");
+        assert_eq!(
+            ok("oxen.internal:8443"),
+            "https://oxen.internal:8443/api/ai"
+        );
         assert_eq!(ok("hub.oxen.ai/api/ai"), "https://hub.oxen.ai/api/ai");
     }
 
@@ -293,13 +319,27 @@ mod tests {
         assert_eq!(ok("localhost:3001"), "http://localhost:3001/api/ai");
         assert_eq!(ok("127.0.0.1:3001"), "http://127.0.0.1:3001/api/ai");
         assert_eq!(ok("localhost"), "http://localhost/api/ai");
-        assert_eq!(ok("https://localhost:3001"), "https://localhost:3001/api/ai");
+        assert_eq!(
+            ok("https://localhost:3001"),
+            "https://localhost:3001/api/ai"
+        );
     }
 
     #[test]
     fn things_that_are_not_hosts_are_refused() {
-        for bad in ["", "   ", "oxen", "ftp://x.com", "https://", "hub oxen.ai", "https://a b"] {
-            assert!(normalize_base_url(bad).is_err(), "{bad:?} should be refused");
+        for bad in [
+            "",
+            "   ",
+            "oxen",
+            "ftp://x.com",
+            "https://",
+            "hub oxen.ai",
+            "https://a b",
+        ] {
+            assert!(
+                normalize_base_url(bad).is_err(),
+                "{bad:?} should be refused"
+            );
         }
     }
 
@@ -325,7 +365,10 @@ mod tests {
             result,
             Check::Ok {
                 models: vec![
-                    Model { name: Some("Claude Opus 5".into()), ..Model::named("claude-opus-5") },
+                    Model {
+                        name: Some("Claude Opus 5".into()),
+                        ..Model::named("claude-opus-5")
+                    },
                     Model::named("llama-4"),
                 ]
             }
@@ -338,7 +381,9 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api/ai/v1/models"))
             .and(header("authorization", "Bearer k"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": [{"id": "gpt-5-mini"}]})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"data": [{"id": "gpt-5-mini"}]})),
+            )
             .mount(&server)
             .await;
         Mock::given(method("GET"))
@@ -411,9 +456,9 @@ mod tests {
         let Check::Failed { message } = check(&server.uri(), "k").await else {
             panic!("a 404 is a failure, not a bad key");
         };
-        assert!(message.ends_with(
-            "is reachable, but there is no Oxen gateway on it. Check the host."
-        ));
+        assert!(
+            message.ends_with("is reachable, but there is no Oxen gateway on it. Check the host.")
+        );
     }
 
     #[tokio::test]
@@ -434,7 +479,9 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/v1/messages"))
             .and(header("authorization", "Bearer k"))
-            .and(body_partial_json(json!({"model": "m", "stream": true, "max_tokens": 1})))
+            .and(body_partial_json(
+                json!({"model": "m", "stream": true, "max_tokens": 1}),
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_string("event: message_stop\n\n"))
             .mount(&server)
             .await;
@@ -453,6 +500,9 @@ mod tests {
             .await;
 
         let err = probe_messages(&server.uri(), "k", "m").await.unwrap_err();
-        assert_eq!(err.to_string(), "A test message to m failed: model not found");
+        assert_eq!(
+            err.to_string(),
+            "A test message to m failed: model not found"
+        );
     }
 }

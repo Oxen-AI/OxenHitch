@@ -186,8 +186,9 @@ fn place_under(window: &WebviewWindow, rect: Rect) {
 
     if let Ok(Some(monitor)) = window.monitor_from_point(icon_position.x, icon_position.y) {
         let left = f64::from(monitor.position().x) + EDGE * scale;
-        let right =
-            f64::from(monitor.position().x) + f64::from(monitor.size().width) - width - EDGE * scale;
+        let right = f64::from(monitor.position().x) + f64::from(monitor.size().width)
+            - width
+            - EDGE * scale;
         x = x.clamp(left, right.max(left));
     }
     let _ = window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));

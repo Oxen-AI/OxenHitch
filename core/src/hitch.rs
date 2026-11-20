@@ -274,7 +274,9 @@ fn sorted(entries: &[serde_json::Value]) -> Vec<String> {
 
 /// `hub.oxen.ai` from `https://hub.oxen.ai/api/ai`: the name keys are saved under.
 fn host_of(base_url: &str) -> &str {
-    let rest = base_url.split_once("://").map_or(base_url, |(_, rest)| rest);
+    let rest = base_url
+        .split_once("://")
+        .map_or(base_url, |(_, rest)| rest);
     rest.split('/').next().unwrap_or(rest)
 }
 
@@ -356,28 +358,39 @@ mod tests {
         assert!(status.claude_installed);
         assert!(!status.claude_running);
         assert!(!status.needs_restart);
-        assert!(!w.hitch.paths.data_dir.exists(), "status must not write anything");
+        assert!(
+            !w.hitch.paths.data_dir.exists(),
+            "status must not write anything"
+        );
     }
 
     #[test]
     fn connecting_with_a_key_sets_claude_up_and_remembers_the_key() {
         let w = world(FakeClaude::not_running());
 
-        let status = w.hitch.connect(Some("  oxen_secret_1234 \n".into()), None).unwrap();
+        let status = w
+            .hitch
+            .connect(Some("  oxen_secret_1234 \n".into()), None)
+            .unwrap();
 
         assert_eq!(status.link, Link::Connected);
         assert_eq!(status.key_hint.as_deref(), Some("1234"));
         assert_eq!(w.hitch.api_key().as_deref(), Some("oxen_secret_1234"));
         let profile = applied_profile(&w.hitch);
         assert_eq!(profile["inferenceGatewayApiKey"], "oxen_secret_1234");
-        assert_eq!(profile["inferenceGatewayBaseUrl"], "https://hub.oxen.ai/api/ai");
+        assert_eq!(
+            profile["inferenceGatewayBaseUrl"],
+            "https://hub.oxen.ai/api/ai"
+        );
         assert_eq!(read(w.hitch.paths.desktop_config())["deploymentMode"], "3p");
     }
 
     #[test]
     fn the_key_never_lands_in_hitchs_state_file() {
         let w = world(FakeClaude::not_running());
-        w.hitch.connect(Some("oxen_secret_1234".into()), None).unwrap();
+        w.hitch
+            .connect(Some("oxen_secret_1234".into()), None)
+            .unwrap();
         let state = fs::read_to_string(w._dir.path().join("hitch/state.json")).unwrap();
         assert!(!state.contains("oxen_secret"));
     }
@@ -393,7 +406,10 @@ mod tests {
     #[test]
     fn a_host_alone_is_enough_to_change_gateways() {
         let w = world(FakeClaude::not_running());
-        let status = w.hitch.connect(Some("k".into()), Some("localhost:3001".into())).unwrap();
+        let status = w
+            .hitch
+            .connect(Some("k".into()), Some("localhost:3001".into()))
+            .unwrap();
         assert_eq!(status.base_url, "http://localhost:3001/api/ai");
         assert_eq!(
             applied_profile(&w.hitch)["inferenceGatewayBaseUrl"],
@@ -404,7 +420,10 @@ mod tests {
     #[test]
     fn a_bad_gateway_address_is_refused() {
         let w = world(FakeClaude::not_running());
-        assert!(w.hitch.connect(Some("k".into()), Some("not a host".into())).is_err());
+        assert!(w
+            .hitch
+            .connect(Some("k".into()), Some("not a host".into()))
+            .is_err());
         assert_eq!(w.hitch.status().link, Link::NotConfigured);
     }
 
@@ -420,35 +439,56 @@ mod tests {
 
         assert_eq!(status.base_url, "http://localhost:3001/api/ai");
         let profile = applied_profile(&w.hitch);
-        assert_eq!(profile["inferenceGatewayBaseUrl"], "http://localhost:3001/api/ai");
+        assert_eq!(
+            profile["inferenceGatewayBaseUrl"],
+            "http://localhost:3001/api/ai"
+        );
         assert_eq!(profile["inferenceGatewayApiKey"], "key-abcd");
     }
 
     #[test]
     fn a_key_the_oxen_cli_saved_is_used_without_pasting() {
         let w = world(FakeClaude::not_running());
-        w.hitch.secrets.set("hub.oxen.ai", "cli-token-9876").unwrap();
+        w.hitch
+            .secrets
+            .set("hub.oxen.ai", "cli-token-9876")
+            .unwrap();
 
         assert_eq!(w.hitch.status().key_hint.as_deref(), Some("9876"));
         let status = w.hitch.connect(None, None).unwrap();
 
         assert_eq!(status.link, Link::Connected);
-        assert_eq!(applied_profile(&w.hitch)["inferenceGatewayApiKey"], "cli-token-9876");
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceGatewayApiKey"],
+            "cli-token-9876"
+        );
     }
 
     #[test]
     fn each_host_uses_its_own_saved_key() {
         let w = world(FakeClaude::not_running());
         w.hitch.secrets.set("hub.oxen.ai", "hub-token").unwrap();
-        w.hitch.secrets.set("localhost:3001", "local-token").unwrap();
+        w.hitch
+            .secrets
+            .set("localhost:3001", "local-token")
+            .unwrap();
         w.hitch.connect(None, None).unwrap();
 
-        let status = w.hitch.connect(None, Some("localhost:3001".into())).unwrap();
+        let status = w
+            .hitch
+            .connect(None, Some("localhost:3001".into()))
+            .unwrap();
 
-        assert_eq!(applied_profile(&w.hitch)["inferenceGatewayApiKey"], "local-token");
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceGatewayApiKey"],
+            "local-token"
+        );
         assert_eq!(status.key_hint.as_deref(), Some("oken"));
         assert_eq!(w.hitch.api_key().as_deref(), Some("local-token"));
-        assert_eq!(w.hitch.secrets.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
+        assert_eq!(
+            w.hitch.secrets.get("hub.oxen.ai").unwrap().as_deref(),
+            Some("hub-token")
+        );
     }
 
     #[test]
@@ -456,10 +496,18 @@ mod tests {
         let w = world(FakeClaude::not_running());
         w.hitch.secrets.set("hub.oxen.ai", "hub-token").unwrap();
 
-        w.hitch.connect(Some("pasted".into()), Some("dev.hub.oxen.ai".into())).unwrap();
+        w.hitch
+            .connect(Some("pasted".into()), Some("dev.hub.oxen.ai".into()))
+            .unwrap();
 
-        assert_eq!(w.hitch.secrets.get("dev.hub.oxen.ai").unwrap().as_deref(), Some("pasted"));
-        assert_eq!(w.hitch.secrets.get("hub.oxen.ai").unwrap().as_deref(), Some("hub-token"));
+        assert_eq!(
+            w.hitch.secrets.get("dev.hub.oxen.ai").unwrap().as_deref(),
+            Some("pasted")
+        );
+        assert_eq!(
+            w.hitch.secrets.get("hub.oxen.ai").unwrap().as_deref(),
+            Some("hub-token")
+        );
     }
 
     #[test]
@@ -467,18 +515,34 @@ mod tests {
         let w = world(FakeClaude::not_running());
         w.hitch.connect(Some("my-key".into()), None).unwrap();
 
-        w.hitch.connect(None, Some("localhost:3001".into())).unwrap();
+        w.hitch
+            .connect(None, Some("localhost:3001".into()))
+            .unwrap();
 
         assert_eq!(w.hitch.api_key().as_deref(), Some("my-key"));
-        assert_eq!(w.hitch.secrets.get("localhost:3001").unwrap().as_deref(), Some("my-key"));
+        assert_eq!(
+            w.hitch.secrets.get("localhost:3001").unwrap().as_deref(),
+            Some("my-key")
+        );
     }
 
     #[test]
     fn a_saved_key_can_be_looked_up_by_whatever_was_typed_as_the_host() {
         let w = world(FakeClaude::not_running());
-        w.hitch.secrets.set("localhost:3001", "local-token-4321").unwrap();
-        assert_eq!(w.hitch.saved_key_hint(" localhost:3001 ").as_deref(), Some("4321"));
-        assert_eq!(w.hitch.saved_key_hint("http://localhost:3001/api/ai").as_deref(), Some("4321"));
+        w.hitch
+            .secrets
+            .set("localhost:3001", "local-token-4321")
+            .unwrap();
+        assert_eq!(
+            w.hitch.saved_key_hint(" localhost:3001 ").as_deref(),
+            Some("4321")
+        );
+        assert_eq!(
+            w.hitch
+                .saved_key_hint("http://localhost:3001/api/ai")
+                .as_deref(),
+            Some("4321")
+        );
         assert_eq!(w.hitch.saved_key_hint("hub.oxen.ai"), None);
         assert_eq!(w.hitch.saved_key_hint("not a host"), None);
     }
@@ -488,7 +552,12 @@ mod tests {
         let w = world(FakeClaude::running_since(1));
         assert!(!w.hitch.status().needs_restart, "nothing has changed yet");
 
-        assert!(w.hitch.connect(Some("k".into()), None).unwrap().needs_restart);
+        assert!(
+            w.hitch
+                .connect(Some("k".into()), None)
+                .unwrap()
+                .needs_restart
+        );
 
         let status = w.hitch.restart_claude().unwrap();
         assert!(status.claude_running);
@@ -498,7 +567,12 @@ mod tests {
     #[test]
     fn a_claude_that_is_not_running_never_needs_a_restart() {
         let w = world(FakeClaude::not_running());
-        assert!(!w.hitch.connect(Some("k".into()), None).unwrap().needs_restart);
+        assert!(
+            !w.hitch
+                .connect(Some("k".into()), None)
+                .unwrap()
+                .needs_restart
+        );
     }
 
     #[test]
@@ -522,10 +596,16 @@ mod tests {
         let w = world(FakeClaude::not_running());
         w.hitch.connect(Some("k".into()), None).unwrap();
 
-        let status = w.hitch.set_models(vec!["opus".into(), "llama".into()]).unwrap();
+        let status = w
+            .hitch
+            .set_models(vec!["opus".into(), "llama".into()])
+            .unwrap();
 
         assert_eq!(status.models, vec!["opus", "llama"]);
-        assert_eq!(applied_profile(&w.hitch)["inferenceModels"], json!(["opus", "llama"]));
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceModels"],
+            json!(["opus", "llama"])
+        );
 
         w.hitch.set_models(vec![]).unwrap();
         assert!(applied_profile(&w.hitch).get("inferenceModels").is_none());
@@ -539,7 +619,12 @@ mod tests {
             uuid: uuid.map(String::from),
         };
         vec![
-            model("gpt-5-mini", "GPT 5 Mini", "openai", Some("0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61")),
+            model(
+                "gpt-5-mini",
+                "GPT 5 Mini",
+                "openai",
+                Some("0b9f6c1e-7a52-4d3e-9f10-2c5a8e4b7d61"),
+            ),
             model("claude-opus-5-5", "Claude Opus 5.5", "anthropic", None),
         ]
     }
@@ -599,7 +684,10 @@ mod tests {
         w.hitch.remember_catalog(oxen_catalog()).unwrap();
 
         assert!(applied_profile(&w.hitch).get("inferenceModels").is_none());
-        assert!(!w.hitch.status().needs_restart, "remembering must not touch Claude");
+        assert!(
+            !w.hitch.status().needs_restart,
+            "remembering must not touch Claude"
+        );
     }
 
     /// A machine connected before Hitch knew what Oxen offers, with Claude restarted since.
@@ -619,7 +707,13 @@ mod tests {
 
         assert!(w.hitch.sync_models().unwrap(), "the list changed");
 
-        assert_eq!(applied_profile(&w.hitch)["inferenceModels"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceModels"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
         assert!(w.hitch.status().needs_restart);
     }
 
@@ -628,12 +722,16 @@ mod tests {
         let w = connected_without_models();
         let id = w.hitch.state.load().profile_id.unwrap();
         let mut profile = applied_profile(&w.hitch);
-        profile["inferenceModels"] = json!([{"name": "claude-via-inim-5-tpg", "labelOverride": "GPT 5 Mini"}]);
+        profile["inferenceModels"] =
+            json!([{"name": "claude-via-inim-5-tpg", "labelOverride": "GPT 5 Mini"}]);
         fs::write(w.hitch.paths.profile_file(&id), profile.to_string()).unwrap();
         w.hitch.remember_catalog(oxen_catalog()).unwrap();
 
         assert!(w.hitch.sync_models().unwrap());
-        assert_eq!(applied_profile(&w.hitch)["inferenceModels"][0], "claude-opus-5-5");
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceModels"][0],
+            "claude-opus-5-5"
+        );
     }
 
     #[test]
@@ -645,7 +743,10 @@ mod tests {
         let before = applied_profile(&w.hitch);
 
         let mut shuffled = oxen_catalog();
-        shuffled.push(Model { developer: Some("anthropic".into()), ..Model::named("claude-haiku-5-5") });
+        shuffled.push(Model {
+            developer: Some("anthropic".into()),
+            ..Model::named("claude-haiku-5-5")
+        });
         w.hitch.remember_catalog(shuffled.clone()).unwrap();
         w.hitch.sync_models().unwrap();
         w.hitch.restart_claude().unwrap();
@@ -654,7 +755,10 @@ mod tests {
 
         shuffled.reverse();
         w.hitch.remember_catalog(shuffled).unwrap();
-        assert!(!w.hitch.sync_models().unwrap(), "same models, different order");
+        assert!(
+            !w.hitch.sync_models().unwrap(),
+            "same models, different order"
+        );
         assert_eq!(applied_profile(&w.hitch), with_three);
         assert!(!w.hitch.status().needs_restart);
     }
@@ -666,7 +770,10 @@ mod tests {
         w.hitch.sync_models().unwrap();
         let id = w.hitch.state.load().profile_id.unwrap();
         let mut profile = applied_profile(&w.hitch);
-        profile.as_object_mut().unwrap().remove("modelDiscoveryEnabled");
+        profile
+            .as_object_mut()
+            .unwrap()
+            .remove("modelDiscoveryEnabled");
         fs::write(w.hitch.paths.profile_file(&id), profile.to_string()).unwrap();
 
         assert!(w.hitch.sync_models().unwrap());
@@ -688,9 +795,20 @@ mod tests {
         paused.hitch.remember_catalog(oxen_catalog()).unwrap();
         assert!(!paused.hitch.sync_models().unwrap());
         assert_eq!(paused.hitch.status().link, Link::Paused);
-        assert!(applied_profile(&paused.hitch).get("inferenceModels").is_none());
-        assert_eq!(paused.hitch.set_routing(true).unwrap().link, Link::Connected);
-        assert_eq!(applied_profile(&paused.hitch)["inferenceModels"].as_array().unwrap().len(), 2);
+        assert!(applied_profile(&paused.hitch)
+            .get("inferenceModels")
+            .is_none());
+        assert_eq!(
+            paused.hitch.set_routing(true).unwrap().link,
+            Link::Connected
+        );
+        assert_eq!(
+            applied_profile(&paused.hitch)["inferenceModels"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]
@@ -702,7 +820,13 @@ mod tests {
         w.hitch.remember_catalog(vec![]).unwrap();
 
         assert!(!w.hitch.sync_models().unwrap());
-        assert_eq!(applied_profile(&w.hitch)["inferenceModels"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceModels"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]
@@ -730,7 +854,11 @@ mod tests {
         assert_eq!(w.hitch.set_routing(true).unwrap().link, Link::Connected);
         let meta = read(w.hitch.paths.meta_file());
         assert_eq!(meta["appliedId"], json!(ours));
-        assert_eq!(meta["entries"].as_array().unwrap().len(), 2, "their entry stays");
+        assert_eq!(
+            meta["entries"].as_array().unwrap().len(),
+            2,
+            "their entry stays"
+        );
     }
 
     #[test]
@@ -738,19 +866,34 @@ mod tests {
         let w = world(FakeClaude::not_running());
         let paths = &w.hitch.paths;
         fs::create_dir_all(paths.library_dir()).unwrap();
-        let meta_before = json!({"appliedId": OTHER, "entries": [{"id": OTHER, "name": "Default"}]});
+        let meta_before =
+            json!({"appliedId": OTHER, "entries": [{"id": OTHER, "name": "Default"}]});
         fs::write(paths.meta_file(), meta_before.to_string()).unwrap();
-        fs::write(paths.profile_file(OTHER), json!({"inferenceProvider": "bedrock"}).to_string())
-            .unwrap();
-        fs::write(paths.desktop_config(), json!({"deploymentMode": "1p"}).to_string()).unwrap();
+        fs::write(
+            paths.profile_file(OTHER),
+            json!({"inferenceProvider": "bedrock"}).to_string(),
+        )
+        .unwrap();
+        fs::write(
+            paths.desktop_config(),
+            json!({"deploymentMode": "1p"}).to_string(),
+        )
+        .unwrap();
 
         w.hitch.connect(Some("k".into()), None).unwrap();
         let status = w.hitch.remove().unwrap();
 
         assert_eq!(status.link, Link::NotConfigured);
-        assert_eq!(w.hitch.api_key().as_deref(), Some("k"), "the Oxen CLI still needs its key");
+        assert_eq!(
+            w.hitch.api_key().as_deref(),
+            Some("k"),
+            "the Oxen CLI still needs its key"
+        );
         assert_eq!(read(paths.meta_file()), meta_before);
-        assert_eq!(read(paths.desktop_config()), json!({"deploymentMode": "1p"}));
+        assert_eq!(
+            read(paths.desktop_config()),
+            json!({"deploymentMode": "1p"})
+        );
         assert_eq!(fs::read_dir(paths.library_dir()).unwrap().count(), 2);
     }
 
