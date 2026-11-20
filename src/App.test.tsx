@@ -334,9 +334,10 @@ describe("connection settings", () => {
 
   it("replaces the key", async () => {
     const { user, calls } = await openConnection();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    // Nothing to save until something changes.
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Oxen API key"), "new_key_9876");
+    await user.type(screen.getByLabelText("API key"), "new_key_9876");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(calls).toContain("connect:new_key_9876:"));
@@ -360,7 +361,7 @@ describe("connection settings", () => {
 
   it("opens on the key from the API key row", async () => {
     await openConnection();
-    expect(screen.getByLabelText("Oxen API key")).toHaveFocus();
+    expect(screen.getByLabelText("API key")).toHaveFocus();
   });
 
   it("opens on the host from a Host row on the home screen", async () => {
@@ -390,7 +391,18 @@ describe("connection settings", () => {
   it("sends a test message", async () => {
     const { user } = await openConnection();
     await user.click(screen.getByRole("button", { name: "Send a test message" }));
-    expect(await screen.findByText("claude-opus-5-5 answered")).toBeVisible();
+    expect(await screen.findByText("Answered")).toBeVisible();
+    expect(screen.getByText("claude-opus-5-5 replied through hub.oxen.ai.")).toBeVisible();
+  });
+
+  it("offers Save only while there is a change to save", async () => {
+    const { user } = await openConnection();
+    const host = screen.getByLabelText("Host");
+    await user.type(host, "x");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+
+    await user.type(host, "{Backspace}");
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 
   it("removes Oxen from Claude only after confirming", async () => {

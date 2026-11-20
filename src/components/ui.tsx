@@ -131,6 +131,40 @@ export function Field(props: {
   );
 }
 
+/**
+ * A field that is a row in a group: its name on the left, its value typed on the right.
+ * Used where settings are edited in place, so the screen reads like the list it came from.
+ */
+export function RowField(props: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  secret?: boolean;
+  autoFocus?: boolean;
+  onEnter?: () => void;
+}) {
+  return (
+    <label className="row row-field">
+      <span className="row-label">{props.label}</span>
+      <input
+        type={props.secret ? "password" : "text"}
+        value={props.value}
+        placeholder={props.placeholder}
+        autoFocus={props.autoFocus}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        onChange={(event) => props.onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") props.onEnter?.();
+        }}
+      />
+    </label>
+  );
+}
+
 export function Notice(props: { tone?: "error" | "info"; children: ReactNode }) {
   const tone = props.tone ?? "error";
   return (
