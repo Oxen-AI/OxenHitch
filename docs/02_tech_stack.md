@@ -112,7 +112,13 @@ The version lives in `package.json`, `src-tauri/tauri.conf.json`, both `Cargo.to
 Most checks run on Linux because the repository is private and macOS runner minutes are billed at
 ten times the Linux rate. Only what needs a Mac runs on one.
 
-**Signing.** Without Apple secrets the app gets an ad-hoc signature (`signingIdentity: "-"`), which
-runs but makes macOS warn on first open. Adding the repository secrets `APPLE_CERTIFICATE`,
-`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and
-`APPLE_TEAM_ID` turns on Developer ID signing and notarization with no workflow change.
+**Signing.** Releases are signed with a Developer ID Application certificate and notarized with an
+App Store Connect API key. Six repository secrets drive it: `APPLE_CERTIFICATE` (base64 `.p12`),
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY` (the key's ID),
+`APPLE_API_ISSUER` and `APPLE_API_KEY_P8` (the key file's contents). With no certificate secret
+the build falls back to an ad-hoc signature (`signingIdentity: "-"`), which runs but makes macOS
+refuse the first open. The certificate expires on 2027-12-20 and must be replaced before then.
+
+A signed app runs under Apple's hardened runtime. `src-tauri/Entitlements.plist` allows the one
+thing Hitch needs beyond the defaults, sending Claude a quit request, and `src-tauri/Info.plist`
+holds the sentence macOS shows when it first asks the user to allow that.

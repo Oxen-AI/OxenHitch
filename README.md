@@ -3,26 +3,62 @@
 Run Claude Desktop on the [Oxen.ai](https://oxen.ai) gateway. Hitch lives in your menu bar: paste
 your Oxen API key, click Connect, restart Claude. No developer mode, no config files.
 
-- **Connect** — validates your key, then sets Claude Desktop up for you.
-- **Switch back** — one toggle returns Claude to Anthropic sign-in, and back again.
-- **Models** — choose which Oxen models Claude shows and which is the default.
-- **Status** — see at a glance whether Claude is on Oxen and whether the gateway is reachable.
-- **Reversible** — Remove restores whatever Claude had before.
-
-macOS first. Windows and Linux are planned; the core already knows where Claude keeps its config on each.
-
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/Oxen-AI/OxenHitch/releases), open it,
-and drag **Hitch** into **Applications**. It runs on Apple Silicon and Intel Macs (macOS 12+) and
-needs the Claude desktop app.
+1. **[Download the latest Hitch `.dmg`](https://github.com/Oxen-AI/OxenHitch/releases/latest)**
+   (under **Assets** on that page).
+2. Open the `.dmg` and drag **Hitch** into **Applications**.
+3. Open Hitch from Applications. Its icon, the Oxen **x**, appears in the menu bar.
 
-Builds are not yet signed with an Apple Developer ID, so macOS will refuse to open the app the
-usual way. After dragging it to Applications, run this once, then open Hitch normally:
+Hitch runs on Apple Silicon and Intel Macs with macOS 12 or later, and needs the
+[Claude desktop app](https://claude.com/download).
 
-```sh
-xattr -cr /Applications/Hitch.app
-```
+From v0.1.1 on, releases are signed and notarized with Apple, so Hitch opens like any other Mac
+app. (v0.1.0 was not: it needs `xattr -cr /Applications/Hitch.app` run once before it will open.)
+
+## Set up
+
+### 1. Paste your Oxen API key
+
+Click the Oxen **x** in the menu bar, paste your key and click **Connect**. Hitch checks the key
+with Oxen before it changes anything. If the Oxen CLI already saved a key on this Mac, Hitch
+finds it and there is nothing to paste.
+
+<img src="docs/images/welcome.png" width="389" alt="Hitch asking for an Oxen API key">
+
+### 2. Restart Claude
+
+Claude reads its settings only when it opens, so Hitch asks you to restart it. Click **Restart
+Claude** and Hitch quits and reopens it for you. It never restarts Claude on its own.
+
+<img src="docs/images/restart.png" width="389" alt="Hitch asking to restart Claude">
+
+### 3. You're on Oxen
+
+Claude now runs on Oxen. The home screen shows whether Claude is running and whether the Oxen
+gateway is reachable. **Run Claude on Oxen** switches Claude back to signing in with Anthropic,
+and on again, without losing your key.
+
+<img src="docs/images/home.png" width="389" alt="Hitch showing Claude running on Oxen">
+
+### Choose your models
+
+**Models** lists every chat model Oxen offers. Leave it on **All models**, or pick the ones you
+want in Claude's model menu; the first one you pick is the default. The refresh button fetches
+the latest list from Oxen.
+
+<img src="docs/images/models.png" width="389" alt="Hitch's model list">
+
+### Change the key or the host
+
+**Host** and **API key** on the home screen open the connection settings. Replace the key, point
+Hitch at a different Oxen host, or send a test message to check the whole path. **Remove Oxen
+from Claude** puts Claude back the way it was before Hitch.
+
+<img src="docs/images/connection.png" width="389" alt="Hitch's connection settings">
+
+Hitch is macOS only for now. Windows and Linux are planned; the core already knows where Claude
+keeps its settings on each.
 
 ## Develop
 

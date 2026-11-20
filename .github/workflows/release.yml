@@ -58,32 +58,44 @@ jobs:
 
       # Signing and notarization happen only when the repository has the Apple secrets.
       # Without them the app gets an ad-hoc signature (see tauri.conf.json), which runs but
-      # makes macOS warn on first open. To turn real signing on, add these repository
-      # secrets: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
-      # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID.
+      # makes macOS warn on first open. The secrets:
+      #   APPLE_CERTIFICATE           a Developer ID Application certificate, as a base64 .p12
+      #   APPLE_CERTIFICATE_PASSWORD  the password of that .p12
+      #   APPLE_SIGNING_IDENTITY      its name, "Developer ID Application: Name (TEAMID)"
+      #   APPLE_API_KEY               an App Store Connect API key's ID, used to notarize
+      #   APPLE_API_ISSUER            that key's issuer ID
+      #   APPLE_API_KEY_P8            the contents of that key's .p8 file
       - name: Use the Apple signing identity, if there is one
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           if [ -z "$APPLE_CERTIFICATE" ]; then
             echo "No Apple certificate is configured. Building with an ad-hoc signature."
             echo "SIGNED=no" >> "$GITHUB_ENV"
             exit 0
           fi
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            value="${!name}"
-            if [ -n "$value" ]; then
-              {
-                echo "$name<<__HITCH_END__"
-                echo "$value"
-                echo "__HITCH_END__"
-              } >> "$GITHUB_ENV"
+          for name in APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The $name secret is missing. Signing needs all six Apple secrets."
+              exit 1
             fi
+          done
+          # The notarization tool reads the key from a file.
+          key_file="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY.p8"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$key_file"
+          chmod 600 "$key_file"
+          echo "APPLE_API_KEY_PATH=$key_file" >> "$GITHUB_ENV"
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER; do
+            {
+              echo "$name<<__HITCH_END__"
+              echo "${!name}"
+              echo "__HITCH_END__"
+            } >> "$GITHUB_ENV"
           done
           echo "SIGNED=yes" >> "$GITHUB_ENV"
 
@@ -97,7 +109,7 @@ jobs:
             echo "3. Open Hitch. Its icon appears in the menu bar."
             echo
             if [ "$SIGNED" = "yes" ]; then
-              echo "Signed and notarized by Oxen.ai."
+              echo "Signed and notarized with Apple, so it opens like any other Mac app."
             else
               echo "> **This build is not signed with an Apple Developer ID.** macOS will refuse to open it the usual way."
               echo "> After dragging it to Applications, run this once in Terminal, then open Hitch normally:"

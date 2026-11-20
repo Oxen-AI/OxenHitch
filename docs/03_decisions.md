@@ -242,3 +242,15 @@ signed. Decided by Greg.
   and no Anthropic artwork is stored in this repository or shipped inside Hitch.
 - The chat bubble stays as the fallback when the icon cannot be read, and on Windows and Linux
   until icon reading exists there.
+
+## 2026-11-19 — Signed and notarized releases
+
+- Releases are signed with the Developer ID certificate of Curious Inspiration LLC (team
+  `9K93LTJDV5`), the Apple developer account available today. The signature names that company,
+  not Oxen. Moving to an Oxen account later means a new certificate and new secrets, nothing else.
+- Notarization uses an App Store Connect API key rather than an Apple ID and app-specific
+  password, so it is not tied to one person's login.
+- Apple only lets the Account Holder create a Developer ID certificate, and not through the API.
+  The private key and signing request were made locally and the request uploaded by hand.
+- The app declares the Apple-events entitlement and a usage sentence, because restarting Claude
+  sends it a quit request and a hardened-runtime app must be allowed to do that.

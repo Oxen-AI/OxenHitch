@@ -171,8 +171,8 @@ It does not use the OS keychain.
 - `https://hub.oxen.ai/api/ai/v1/models` returned 404 on 2026-11-19 and the local dev server at
   `localhost:3001` was failing to compile, so the gateway client is tested against a mock only.
   It needs one real end-to-end run once either is up.
-- Distribution: Developer ID signing and notarization (the release workflow is ready for the
-  secrets), and auto-update. The DMG and release pipeline exist.
+- Distribution: auto-update. The DMG, release pipeline, Developer ID signing and notarization
+  exist.
 - "Sign in with Oxen" needs an OAuth or device-login endpoint on the hub.
 
 ## Where to look next
