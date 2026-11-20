@@ -63,6 +63,7 @@ pub fn run() {
             commands::restart_claude,
             commands::test_message,
             commands::saved_key,
+            commands::claude_icon,
             commands::autostart,
             commands::set_autostart,
             commands::open_url,

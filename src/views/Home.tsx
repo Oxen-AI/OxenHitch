@@ -66,14 +66,19 @@ export function Home(props: {
   const { tone, title, detail } = headline(status, gateway);
   const routing = useAction((enabled: boolean) => api.setRouting(enabled));
   const on = status.link === "connected";
+  const claudeIcon = useClaudeIcon(api, status.claudeInstalled);
 
   return (
     <main className="screen home">
       <section className="hero">
         <div className="hitch" data-tone={tone} aria-hidden="true">
-          <div className="node">
-            <Bubble />
-          </div>
+          {claudeIcon ? (
+            <img className="node-icon" src={claudeIcon} alt="" draggable={false} />
+          ) : (
+            <div className="node">
+              <Bubble />
+            </div>
+          )}
           <div className="wire">
             <span className="bead" />
           </div>
@@ -154,6 +159,22 @@ export function Home(props: {
       </footer>
     </main>
   );
+}
+
+/** Claude's icon from the installed app. Asked for again if Claude gets installed later. */
+function useClaudeIcon(api: Api, installed: boolean) {
+  const [icon, setIcon] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    api.claudeIcon().then(
+      (url) => current && setIcon(url),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [api, installed]);
+  return icon;
 }
 
 /**

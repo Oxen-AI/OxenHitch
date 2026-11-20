@@ -263,6 +263,16 @@ p {
   transition: opacity 0.3s var(--ease);
 }
 
+/* Claude's app icon carries its own rounded tile and shadow, with clear space around it.
+   Drawn larger than a node so the tile inside lines up with Oxen's. */
+.node-icon {
+  width: 54px;
+  height: 54px;
+  margin: -5px;
+  -webkit-user-drag: none;
+  transition: opacity 0.3s var(--ease);
+}
+
 .node-oxen {
   color: #fff;
   background: linear-gradient(180deg, #2c2c31, #0f0f12);

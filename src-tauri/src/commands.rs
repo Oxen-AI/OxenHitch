@@ -173,6 +173,15 @@ pub fn saved_key(hitch: Shared, host: String) -> Option<String> {
     hitch.saved_key_hint(&host)
 }
 
+/// Claude's app icon as a `data:` URL, read from the installed app. `None` without one.
+#[tauri::command]
+pub async fn claude_icon(hitch: Shared<'_>) -> CommandResult<Option<String>> {
+    let hitch = hitch.inner().clone();
+    blocking(move || Ok(hitch_core::claude::icon::icon_data_url(&hitch.paths)))
+        .await
+        .map_err(sentence)
+}
+
 #[tauri::command]
 pub fn autostart(app: AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)

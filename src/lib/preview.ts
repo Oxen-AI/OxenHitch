@@ -1,6 +1,6 @@
 // Browser preview: `?state=connected` (or paused, drifted, restart, noclaude, badkey, offline)
 // picks the starting state. No query starts at first run. `&view=models` (or connection)
-// opens that screen.
+// opens that screen. `&icon=<image url>` stands in for Claude's app icon.
 
 import type { View } from "../App";
 import type { Api } from "./api";
@@ -24,7 +24,8 @@ const states: Record<string, FakeOptions> = {
 
 export function preview(): Api {
   const state = new URLSearchParams(location.search).get("state") ?? "";
-  return createFakeApi({ latency: 500, ...states[state] }).api;
+  const claudeIcon = new URLSearchParams(location.search).get("icon") ?? undefined;
+  return createFakeApi({ latency: 500, claudeIcon, ...states[state] }).api;
 }
 
 export function previewView(): View | undefined {

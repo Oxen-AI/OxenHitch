@@ -28,6 +28,8 @@ export interface FakeOptions {
   savedKeys?: Record<string, string>;
   /** The saved key cannot be read (keychain denied, or the key is gone). */
   keyUnreadable?: boolean;
+  /** Claude's app icon, as the real backend reads it from the installed app. */
+  claudeIcon?: string;
   /** Milliseconds each call takes, to see loading states. */
   latency?: number;
 }
@@ -105,6 +107,9 @@ export function createFakeApi(options: FakeOptions = {}) {
     },
     async savedKey(host) {
       return savedKeys[hostOf(toBaseUrl(host))] ?? null;
+    },
+    async claudeIcon() {
+      return options.claudeIcon ?? null;
     },
     async testMessage() {
       await record("testMessage");

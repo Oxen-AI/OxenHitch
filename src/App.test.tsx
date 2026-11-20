@@ -113,6 +113,23 @@ describe("once connected", () => {
     expect(screen.getByText("••••1234")).toBeVisible();
   });
 
+  it("shows Claude's own icon from the installed app", async () => {
+    const { container } = render(
+      <App api={createFakeApi({ status: connectedStatus, claudeIcon: "data:image/png;base64,AAAA" }).api} />,
+    );
+    await screen.findByRole("heading", { name: "Claude is running on Oxen" });
+    await waitFor(() =>
+      expect(container.querySelector("img.node-icon")).toHaveAttribute("src", "data:image/png;base64,AAAA"),
+    );
+  });
+
+  it("falls back to a plain chat bubble when Claude's icon cannot be read", async () => {
+    const { container } = render(<App api={createFakeApi({ status: connectedStatus }).api} />);
+    await screen.findByRole("heading", { name: "Claude is running on Oxen" });
+    expect(container.querySelector("img.node-icon")).toBeNull();
+    expect(container.querySelector(".hitch .node svg")).not.toBeNull();
+  });
+
   it("shows that it sees Claude running", async () => {
     open({ status: connectedStatus });
     const row = (await screen.findByText("Claude Desktop")).closest(".row") as HTMLElement;

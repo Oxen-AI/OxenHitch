@@ -48,6 +48,8 @@ export interface Api {
   restartClaude(): Promise<Status>;
   /** The last characters of the key already saved for a host, or `null` if none is. */
   savedKey(host: string): Promise<string | null>;
+  /** Claude's own app icon as an image URL, or `null` when it cannot be read. */
+  claudeIcon(): Promise<string | null>;
   /** Resolves with the model that answered. */
   testMessage(): Promise<string>;
   autostart(): Promise<boolean>;
@@ -69,6 +71,7 @@ export const tauriApi: Api = {
   remove: () => invoke("remove"),
   restartClaude: () => invoke("restart_claude"),
   savedKey: (host) => invoke("saved_key", { host }),
+  claudeIcon: () => invoke("claude_icon"),
   testMessage: () => invoke("test_message"),
   autostart: () => invoke("autostart"),
   setAutostart: (enabled) => invoke("set_autostart", { enabled }),

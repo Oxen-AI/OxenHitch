@@ -233,3 +233,12 @@ signed. Decided by Greg.
 - Changing the host in Connection says when a key is already saved for the new host, the same
   way first run does, so moving between hosts (for example hub.oxen.ai and a local Oxen) needs
   nothing pasted.
+
+## 2026-11-19 — Claude's own icon, read from the installed app
+
+- The home screen shows Claude's real app icon in place of the generic chat bubble. Hitch reads
+  it at run time from the Claude app on the machine (`CFBundleIconFile` in its `Info.plist`,
+  converted to a 128 px PNG with macOS's `sips`). So it always matches the app the user has,
+  and no Anthropic artwork is stored in this repository or shipped inside Hitch.
+- The chat bubble stays as the fallback when the icon cannot be read, and on Windows and Linux
+  until icon reading exists there.
