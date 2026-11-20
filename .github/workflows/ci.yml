@@ -1,0 +1,79 @@
+name: CI
+
+# Runs on every push to main and every pull request. The release workflow also calls it,
+# so nothing is released that has not passed the same checks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit, branch or tag to check. Defaults to what triggered the run.
+        type: string
+        required: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Tests, types and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: The version is the same in every file
+        run: node scripts/version.mjs check
+
+      - name: UI tests
+        run: pnpm test
+      - name: Type-check and build the UI
+        run: pnpm build
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Lint the core
+        run: cargo clippy -p hitch-core --all-targets --locked -- -D warnings
+      - name: Core tests
+        run: cargo test -p hitch-core --locked
+
+  app:
+    name: Lint the desktop shell (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      # The shell embeds the built UI at compile time. Linting needs the folder to exist,
+      # not its real contents.
+      - run: mkdir -p dist && touch dist/index.html
+
+      - name: Lint the shell and everything it uses
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings

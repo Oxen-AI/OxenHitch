@@ -68,9 +68,12 @@ design/                  SVG sources for the app icon and menu-bar glyph
 ```sh
 pnpm install
 pnpm tauri dev            # run the app against your real Claude Desktop
-pnpm test                 # UI tests
+pnpm test                 # UI and script tests
 pnpm test:rust            # core tests
+pnpm check                # everything CI runs: tests, types, formatting, lint
 pnpm tauri build          # produce the .app / .dmg
+pnpm version check        # the version, and that every file agrees on it
+pnpm version bump patch   # raise it everywhere (CI normally does this)
 pnpm dev                  # UI only, in a browser, on a fake backend (http://localhost:1437)
 cargo run -p hitch-core --example inspect   # what Hitch sees on this machine (read-only)
 ```
@@ -92,3 +95,24 @@ In a browser, `?state=connected` (or `restart`, `closed`, `paused`, `drifted`, `
 
 The dev server uses port **1437**, not Tauri's default 1420, so it does not collide with other
 Tauri projects on the same machine.
+
+## CI and releases
+
+Three GitHub Actions workflows in `.github/workflows/`:
+
+| Workflow | When | What |
+|---|---|---|
+| `ci.yml` | Every push to `main`, every pull request, and before every release | On Linux: version consistency, UI tests, type-check and UI build, `rustfmt`, `clippy` and tests for the core. On macOS: `clippy` for the whole workspace, since the shell only builds there. |
+| `release.yml` | A `vX.Y.Z` tag is pushed, or run by hand for a tag | Runs `ci.yml` at that tag, checks the tag matches the version in the code, builds a universal (Apple Silicon + Intel) `.dmg`, and publishes a GitHub release with it. |
+| `bump-version.yml` | Run by hand | Raises the version in every file, commits to `main`, tags, and starts `release.yml`. |
+
+The version lives in `package.json`, `src-tauri/tauri.conf.json`, both `Cargo.toml` files and
+`Cargo.lock`. `scripts/version.mjs` reads, checks and bumps them together; CI fails if they differ.
+
+Most checks run on Linux because the repository is private and macOS runner minutes are billed at
+ten times the Linux rate. Only what needs a Mac runs on one.
+
+**Signing.** Without Apple secrets the app gets an ad-hoc signature (`signingIdentity: "-"`), which
+runs but makes macOS warn on first open. Adding the repository secrets `APPLE_CERTIFICATE`,
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and
+`APPLE_TEAM_ID` turns on Developer ID signing and notarization with no workflow change.

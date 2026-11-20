@@ -207,3 +207,19 @@ The sync above first ran only because the popover's page happens to load when th
 now an explicit step in startup, in Rust, so it does not depend on the window. The Models screen
 also has a Refresh button that runs the same sync on demand and reports the outcome: "Up to date",
 or "Updated. Restart Claude to see the changes." Requested by Greg.
+
+## 2026-11-19 — Private GitHub repository, CI, and tag-driven releases
+
+The code lives at `Oxen-AI/OxenHitch`, private for now; it can be made public once builds are
+signed. Decided by Greg.
+
+- Releases are driven by tags. A `vX.Y.Z` tag builds and publishes the installer, and the release
+  workflow reruns every check first so a tag can never ship something untested.
+- A "Bump version" workflow does the version edit, commit, tag and release in one click, because
+  the version lives in five files and doing it by hand invites a mismatch. It starts the release
+  workflow directly: a tag pushed by a workflow does not trigger other workflows.
+- One universal `.dmg` rather than one per chip, so there is a single download.
+- Builds are ad-hoc signed until Apple Developer ID secrets are added. The release notes say so
+  and give the one command needed to open the app.
+- The content-security policy now allows Tauri's own IPC channel (`ipc:`). Without that the app
+  silently fell back to a slower message-passing path.

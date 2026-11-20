@@ -1,0 +1,128 @@
+name: Release
+
+# Builds the macOS installer and publishes it as a GitHub release.
+#
+# Starts when a version tag (v1.2.3) is pushed, or when run by hand for an existing tag.
+# The "Bump version" workflow does both steps for you: it makes the tag and then starts this.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to build and release, such as v0.1.0. It must already exist.
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+
+  build:
+    name: Build and publish the macOS installer
+    needs: checks
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: The tag matches the version in the code
+        run: node scripts/version.mjs check "$TAG"
+
+      # One installer that runs on both Apple Silicon and Intel Macs.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      # Signing and notarization happen only when the repository has the Apple secrets.
+      # Without them the app gets an ad-hoc signature (see tauri.conf.json), which runs but
+      # makes macOS warn on first open. To turn real signing on, add these repository
+      # secrets: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+      # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (app-specific), APPLE_TEAM_ID.
+      - name: Use the Apple signing identity, if there is one
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "No Apple certificate is configured. Building with an ad-hoc signature."
+            echo "SIGNED=no" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            value="${!name}"
+            if [ -n "$value" ]; then
+              {
+                echo "$name<<__HITCH_END__"
+                echo "$value"
+                echo "__HITCH_END__"
+              } >> "$GITHUB_ENV"
+            fi
+          done
+          echo "SIGNED=yes" >> "$GITHUB_ENV"
+
+      - name: Write the release notes
+        run: |
+          {
+            echo "## Install"
+            echo
+            echo "1. Download the \`.dmg\` below and open it."
+            echo "2. Drag **Hitch** into **Applications**."
+            echo "3. Open Hitch. Its icon appears in the menu bar."
+            echo
+            if [ "$SIGNED" = "yes" ]; then
+              echo "Signed and notarized by Oxen.ai."
+            else
+              echo "> **This build is not signed with an Apple Developer ID.** macOS will refuse to open it the usual way."
+              echo "> After dragging it to Applications, run this once in Terminal, then open Hitch normally:"
+              echo ">"
+              echo "> \`\`\`sh"
+              echo "> xattr -cr /Applications/Hitch.app"
+              echo "> \`\`\`"
+            fi
+            echo
+            echo "Runs on Apple Silicon and Intel Macs, macOS 12 or later. Needs the Claude desktop app."
+          } > "$RUNNER_TEMP/notes.md"
+          {
+            echo "RELEASE_NOTES<<__HITCH_END__"
+            cat "$RUNNER_TEMP/notes.md"
+            echo "__HITCH_END__"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the installer and publish the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ env.TAG }}
+          releaseName: Hitch ${{ env.TAG }}
+          releaseBody: ${{ env.RELEASE_NOTES }}
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin

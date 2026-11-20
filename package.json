@@ -9,7 +9,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rust": "cargo test -p hitch-core",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "version": "node scripts/version.mjs",
+    "check": "pnpm test && pnpm build && cargo fmt --all -- --check && cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test -p hitch-core --locked"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.5",
@@ -28,5 +30,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"
-  }
+  },
+  "packageManager": "pnpm@11.25.0"
 }

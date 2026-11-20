@@ -1,0 +1,76 @@
+name: Bump version
+
+# The one-click way to release. Run it from the Actions tab (or `gh workflow run
+# bump-version.yml -f bump=patch`). It raises the version in every file that carries it,
+# commits that to main, tags the commit, and starts the Release workflow for the tag.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      exact:
+        description: Or set an exact version, such as 1.2.0 (overrides the choice above)
+        type: string
+        required: false
+      release:
+        description: Build and publish the release once the tag is made
+        type: boolean
+        default: true
+
+concurrency:
+  group: bump-version
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  bump:
+    name: Bump, tag and release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Releases are cut from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this workflow on the main branch, not ${{ github.ref_name }}."
+          exit 1
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Raise the version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXACT: ${{ inputs.exact }}
+        run: |
+          version=$(node scripts/version.mjs bump "${EXACT:-$BUMP}")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $TAG"
+          git tag -a "$TAG" -m "Hitch $TAG"
+          git push origin HEAD:main "$TAG"
+
+      # A tag pushed by a workflow does not start other workflows, so start the release
+      # directly instead of relying on the tag.
+      - name: Start the release
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh workflow run release.yml --ref "$TAG" -f tag="$TAG"
+          echo "Started the release of $TAG. Watch it under Actions → Release." >> "$GITHUB_STEP_SUMMARY"
