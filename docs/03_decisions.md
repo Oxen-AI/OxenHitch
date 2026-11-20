@@ -148,10 +148,13 @@ hides most of what Oxen offers. Hitch therefore writes `inferenceModels` itself:
 - Anthropic's models keep their names. Every other model is written as
   `{ "name": "claude-via-{UUID}", "labelOverride": "<display name>", "behavesAs": "claude-sonnet-5" }`,
   using the model's `uuid` field from that list.
-- **The server side of this is not built yet.** Oxen's list has no `uuid` field and the gateway
-  resolves `claude-via-<name>` by name only. Until a model has a `uuid`, Hitch writes the model's
-  name reversed (`claude-via-inim-5-tpg`), which the gateway already resolves, and switches to the
-  UUID by itself once the field appears. Greg is adding the server support.
+- The server side lives in OxenHub (added 2026-11-19 on the `gs/anthropic-messages-gateway`
+  branch): `GET /api/ai/models` returns a `uuid` per model, and the Anthropic-compatible API
+  resolves `claude-via-<uuid>`. A base model's uuid is a version 5 uuid derived from its name, so
+  it is the same on every Hub; a custom model's uuid is its database id.
+- Against a Hub that has no `uuid` field yet, Hitch writes the model's name reversed
+  (`claude-via-inim-5-tpg`), which the gateway also resolves, and switches to the uuid by itself
+  once the field appears.
 - With nothing chosen in Hitch, every model is listed (Anthropic's first). Choosing models narrows
   the list; the first choice is Claude's default.
 - Hitch remembers the last list it saw so it can rewrite the profile without the network.
