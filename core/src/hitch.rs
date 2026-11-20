@@ -180,7 +180,7 @@ impl Hitch {
         } else {
             wanted == current
         };
-        if up_to_date {
+        if up_to_date && library::discovery_enabled(&self.paths, id) {
             return Ok(false);
         }
         self.connect(None, None)?;
@@ -657,6 +657,21 @@ mod tests {
         assert!(!w.hitch.sync_models().unwrap(), "same models, different order");
         assert_eq!(applied_profile(&w.hitch), with_three);
         assert!(!w.hitch.status().needs_restart);
+    }
+
+    #[test]
+    fn syncing_switches_discovery_on_for_a_list_written_before_hitch_did_that() {
+        let w = connected_without_models();
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+        w.hitch.sync_models().unwrap();
+        let id = w.hitch.state.load().profile_id.unwrap();
+        let mut profile = applied_profile(&w.hitch);
+        profile.as_object_mut().unwrap().remove("modelDiscoveryEnabled");
+        fs::write(w.hitch.paths.profile_file(&id), profile.to_string()).unwrap();
+
+        assert!(w.hitch.sync_models().unwrap());
+        assert_eq!(applied_profile(&w.hitch)["modelDiscoveryEnabled"], true);
+        assert!(!w.hitch.sync_models().unwrap(), "and then it settles");
     }
 
     #[test]

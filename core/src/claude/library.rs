@@ -86,6 +86,13 @@ pub fn profile_models(paths: &ClaudePaths, id: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// Whether the profile tells Claude to ask the gateway about its models.
+pub fn discovery_enabled(paths: &ClaudePaths, id: &str) -> bool {
+    read_object(&paths.profile_file(id))
+        .and_then(|profile| profile.get(DISCOVERY).and_then(Value::as_bool))
+        .unwrap_or(false)
+}
+
 /// Writes the profile, makes it the applied one, and puts Claude in third-party mode.
 pub fn apply_profile(paths: &ClaudePaths, id: &str, profile: &GatewayProfile) -> Result<()> {
     let file = paths.profile_file(id);
@@ -119,7 +126,12 @@ pub fn apply_profile(paths: &ClaudePaths, id: &str, profile: &GatewayProfile) ->
     body.insert("inferenceCredentialKind".into(), json!("static"));
     if profile.models.is_empty() {
         body.shift_remove(MODELS);
+        body.shift_remove(DISCOVERY);
     } else {
+        // Claude shows only the models listed here, but takes each one's subtitle from the
+        // gateway's own list (matched by name). It skips asking the gateway when a list is
+        // configured, unless discovery is switched on explicitly.
+        body.insert(DISCOVERY.into(), json!(true));
         let models: Vec<Value> = profile.models.iter().map(ModelEntry::to_config).collect();
         body.insert(MODELS.into(), Value::Array(models));
     }
@@ -198,6 +210,7 @@ const CLAUDE_AI_IMPORT: &str = "claudeAiImport";
 const BASE_URL: &str = "inferenceGatewayBaseUrl";
 const API_KEY: &str = "inferenceGatewayApiKey";
 const MODELS: &str = "inferenceModels";
+const DISCOVERY: &str = "modelDiscoveryEnabled";
 
 type Object = Map<String, Value>;
 
@@ -449,6 +462,25 @@ mod tests {
         profile.models.clear();
         apply_profile(&paths, &id, &profile).unwrap();
         assert!(read(paths.profile_file(&id)).get("inferenceModels").is_none());
+    }
+
+    #[test]
+    fn listing_models_keeps_discovery_on_so_the_gateway_can_describe_them() {
+        // Claude takes each listed model's subtitle from the gateway's own model list, and
+        // only asks the gateway for it when discovery is switched on explicitly.
+        let (_dir, paths) = sandbox();
+        let id = new_profile_id();
+        let mut profile = oxen(Some("k"));
+        profile.models = vec!["claude-opus-5-5".into()];
+
+        apply_profile(&paths, &id, &profile).unwrap();
+        assert_eq!(read(paths.profile_file(&id))["modelDiscoveryEnabled"], true);
+        assert!(discovery_enabled(&paths, &id));
+
+        profile.models.clear();
+        apply_profile(&paths, &id, &profile).unwrap();
+        assert!(read(paths.profile_file(&id)).get("modelDiscoveryEnabled").is_none());
+        assert!(!discovery_enabled(&paths, &id));
     }
 
     #[test]

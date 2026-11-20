@@ -159,36 +159,25 @@ hides most of what Oxen offers. Hitch therefore writes `inferenceModels` itself:
 
 Decided by Greg.
 
-## 2026-11-19 — Model subtitles cannot come from the config file
+## 2026-11-19 — Model subtitles come from the gateway, so Hitch keeps discovery on
 
-Claude's schema for an `inferenceModels` entry (read from the app, version 6.6395.1) is `name`,
-`labelOverride`, `behavesAs`, `supports1m`, `prefer1m`, `anthropicFamilyTier`, `isFamilyDefault`,
-`maxEffort`, `minDesktopVersion`. There is no description field. Claude does read a `description`
-(cut to 100 characters) per model from the gateway's `GET /v1/models` response during discovery,
-together with `display_name`, `behaves_as`, `max_effort_level`, `supports_1m` and
-`anthropic_family_tier`. But discovery is skipped when `inferenceModels` is set, unless
-`modelDiscoveryEnabled` is set explicitly. So subtitles need the gateway to describe its models,
-and how discovered models combine with a configured list is untested.
+How Claude Desktop (6.6395.1) builds its model picker, read from the app:
 
-## 2026-11-19 — The key lives in the Oxen CLI's settings file, not the keychain
+- An `inferenceModels` entry may hold only `name`, `labelOverride`, `behavesAs`, `supports1m`,
+  `prefer1m`, `anthropicFamilyTier`, `isFamilyDefault`, `maxEffort`, `minDesktopVersion`. There is
+  no description field.
+- When a list is configured, the picker shows exactly those entries. For each one Claude looks up
+  the model **with the same ID** in the gateway's `GET /v1/models` response and takes its
+  `description` (cut to 100 characters) as the subtitle. With no description it falls back to
+  built-in text, which exists only for real Claude models.
+- Claude skips that gateway call when a list is configured ("inferenceModels obviates discovery"),
+  unless `modelDiscoveryEnabled` is set explicitly.
 
-This replaces three earlier decisions above: keeping the key in the OS keychain, reading the
-keychain once per launch, and using a private file for development builds.
-
-The keychain kept interrupting with permission prompts, and "Always Allow" does not hold for
-unsigned builds. Meanwhile the Oxen CLI already stores a token per host in
-`~/.config/oxen/auth_config.toml`, and those hosts line up with Hitch's Host setting. So:
-
-- Hitch reads the token for the chosen host from that file. Anyone who has used the CLI has
-  nothing to paste.
-- A key pasted into Hitch is written to that file for that host, so the CLI gains it too.
-- Changing host uses that host's saved key. If it has none, the current key is carried over.
-- Hitch edits only the one host entry (with `toml_edit`, so the rest of the file is untouched),
-  writes atomically, and keeps the file owner-only. A file it cannot parse is never overwritten.
-- Remove no longer deletes the key: the CLI depends on it.
-
-The trade-off is that the key sits in a plain-text file readable by the user's own programs,
-rather than in the keychain. That is already true for every Oxen CLI user. Suggested by Greg.
+So Hitch writes `"modelDiscoveryEnabled": true` whenever it writes a model list. The other half is
+on the gateway: `GET /v1/models` must return an entry whose `id` equals the configured name
+(`claude-via-{UUID}`, not the plain model name) with a `description`. Oxen's models already have a
+short `summary` that would suit. Until the gateway does that, non-Claude models show no subtitle.
+This is from reading the code; it has not been seen working end to end.
 
 ## 2026-11-19 — Sync Claude's model list automatically
 
