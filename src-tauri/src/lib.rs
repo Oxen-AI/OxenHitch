@@ -11,7 +11,7 @@ use std::time::Duration;
 use hitch_core::claude::process::{fake::FakeClaude, SystemClaude};
 use hitch_core::claude::{ClaudeApp, ClaudePaths};
 use hitch_core::hitch::Hitch;
-use hitch_core::secrets::Keychain;
+use hitch_core::secrets::{FileSecrets, Keychain, Remembered, SecretStore};
 use hitch_core::state::StateStore;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
@@ -67,31 +67,34 @@ pub fn run() {
 }
 
 /// With `HITCH_CLAUDE_DIR` set, Hitch runs in a sandbox: it writes Claude config to that
-/// directory, keeps its own state beside it, and never touches the real Claude app.
+/// directory, keeps its own state and key beside it, and never touches the real Claude
+/// app or the real keychain.
 fn build_hitch(app_data_dir: PathBuf) -> Hitch {
     let paths = ClaudePaths::detect();
     let sandbox = std::env::var_os("HITCH_CLAUDE_DIR").is_some();
 
-    let (state_file, service, claude): (PathBuf, &str, Box<dyn ClaudeApp>) = if sandbox {
-        (
-            paths.data_dir.with_file_name("hitch-state.json"),
-            "ai.oxen.hitch.sandbox",
-            Box::new(FakeClaude::running_since(1)),
-        )
-    } else {
-        (
-            app_data_dir.join("state.json"),
-            "ai.oxen.hitch",
-            Box::new(SystemClaude {
-                bundles: paths.app_bundles.clone(),
-            }),
-        )
-    };
+    let (state_file, secrets, claude): (PathBuf, Box<dyn SecretStore>, Box<dyn ClaudeApp>) =
+        if sandbox {
+            (
+                paths.data_dir.with_file_name("hitch-state.json"),
+                Box::new(FileSecrets::new(paths.data_dir.with_file_name("hitch-key"))),
+                Box::new(FakeClaude::running_since(1)),
+            )
+        } else {
+            (
+                app_data_dir.join("state.json"),
+                // Read the keychain once per launch; every read can raise a prompt.
+                Box::new(Remembered::new(Keychain::new("ai.oxen.hitch"))),
+                Box::new(SystemClaude {
+                    bundles: paths.app_bundles.clone(),
+                }),
+            )
+        };
 
     Hitch {
         paths,
         state: StateStore::new(state_file),
-        secrets: Box::new(Keychain::new(service)),
+        secrets,
         claude,
     }
 }

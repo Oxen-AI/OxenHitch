@@ -115,3 +115,12 @@ Opening too early only brings the old process forward with its old settings; ret
 leaves the UI saying Claude is not running. If Claude will not quit (it may be showing a dialog)
 Hitch says so and does not open a second copy. The home screen also shows a "Claude Desktop" row
 (Running / Not running) so it is clear what Hitch detected. Requested by Greg.
+
+## 2026-11-19 — Read the keychain once per launch; no keychain in sandbox mode
+
+Every keychain read can raise a macOS permission prompt, and unsigned dev builds get a new identity
+on each rebuild, so "Always Allow" never sticks during development. Hitch was reading the key each
+time the popover opened. Now the key is read once and held in memory for the life of the process
+(`Remembered`), and a refused read is not cached so the next attempt can ask again. Sandbox mode
+stores its throwaway key in an owner-only file instead (`FileSecrets`). A signed release build has
+a stable identity, so users should see at most one prompt, if any. Reported by Greg.

@@ -81,8 +81,8 @@ cargo run -p hitch-core --example inspect   # what Hitch sees on this machine (r
 HITCH_CLAUDE_DIR=/tmp/hitch-sandbox/Claude-3p HITCH_STAY_OPEN=1 pnpm tauri dev
 ```
 
-- `HITCH_CLAUDE_DIR` — sandbox mode. Config is written there, Hitch's state sits beside it, the
-  keychain entry uses a separate service name, and "Restart Claude" is simulated.
+- `HITCH_CLAUDE_DIR` — sandbox mode. Config is written there, Hitch's state and key sit beside it
+  in plain files (the keychain is not used), and "Restart Claude" is simulated.
 - `HITCH_STAY_OPEN` — debug builds only. The popover does not close when it loses focus.
 - `HITCH_BASE_URL` — the gateway address offered before one is saved.
 
