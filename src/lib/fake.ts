@@ -22,6 +22,8 @@ export const fakeModels: Model[] = [
 export interface FakeOptions {
   status?: Partial<Status>;
   check?: Check;
+  /** A gateway check finds models Claude lacks, so Claude's list is rewritten. */
+  checkUpdatesClaude?: boolean;
   /** Keys already saved on this machine, as host -> last four characters. */
   savedKeys?: Record<string, string>;
   /** The saved key cannot be read (keychain denied, or the key is gone). */
@@ -68,7 +70,9 @@ export function createFakeApi(options: FakeOptions = {}) {
     },
     async check() {
       await record("check");
-      return status.keyHint && !options.keyUnreadable ? check : null;
+      if (!status.keyHint || options.keyUnreadable) return null;
+      if (options.checkUpdatesClaude && status.link === "connected") update({ needsRestart: true });
+      return check;
     },
     async connect({ apiKey, baseUrl }) {
       await record(`connect:${apiKey ?? ""}:${baseUrl ?? ""}`);

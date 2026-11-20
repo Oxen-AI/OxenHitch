@@ -205,3 +205,10 @@ Guards, because each rewrite costs a restart:
 - An empty answer never empties Claude's list: it means Oxen could not be asked.
 
 A list written by hand into Hitch's profile is replaced. Reported by Greg.
+
+## 2026-11-19 — Models are added at startup, and can be refreshed by hand
+
+The sync above first ran only because the popover's page happens to load when the app starts. It is
+now an explicit step in startup, in Rust, so it does not depend on the window. The Models screen
+also has a Refresh button that runs the same sync on demand and reports the outcome: "Up to date",
+or "Updated. Restart Claude to see the changes." Requested by Greg.

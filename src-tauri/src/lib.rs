@@ -43,6 +43,13 @@ pub fn run() {
                 tray::show_when_ready(app.handle().clone());
             }
 
+            // Add Oxen's models to Claude as soon as Hitch starts, without waiting for the
+            // popover to be opened.
+            let (handle, starting) = (app.handle().clone(), hitch.clone());
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::refresh(&handle, &starting).await;
+            });
+
             watch(app.handle().clone(), hitch);
             Ok(())
         })

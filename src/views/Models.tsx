@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { Gateway } from "../App";
 import type { Api, Model, Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
-import { Check, Notice, Spinner, SubHeader } from "../components/ui";
+import { Check, Notice, Refresh, Spinner, SubHeader } from "../components/ui";
 
 /** More models than this and a search field appears. */
 const SEARCH_FROM = 8;
 
 /** Show every Oxen model in Claude, or pick which. The first pick is the default. */
-export function Models(props: { api: Api; status: Status; gateway: Gateway; onDone: () => void }) {
+export function Models(props: {
+  api: Api;
+  status: Status;
+  gateway: Gateway;
+  /** Asks Oxen for its models again, which also brings Claude's list up to date. */
+  onRefresh: () => Promise<void>;
+  onDone: () => void;
+}) {
   const { api, status, gateway, onDone } = props;
   const [picked, setPicked] = useState<string[]>(status.models);
   const [query, setQuery] = useState("");
@@ -20,7 +27,17 @@ export function Models(props: { api: Api; status: Status; gateway: Gateway; onDo
     onDone();
   });
 
-  const offered: Model[] = gateway.state === "ok" ? gateway.models : [];
+  // Keep showing the last list while a refresh is in flight, so the screen doesn't blink.
+  const lastOffered = useRef<Model[]>([]);
+  if (gateway.state === "ok") lastOffered.current = gateway.models;
+  const offered: Model[] = gateway.state === "ok" || gateway.state === "checking" ? lastOffered.current : [];
+
+  const [refreshed, setRefreshed] = useState(false);
+  const refresh = useAction(async () => {
+    setRefreshed(false);
+    await props.onRefresh();
+    setRefreshed(true);
+  });
   // A model picked earlier that the gateway no longer lists still shows, so it can be unpicked.
   const gone: Model[] = picked
     .filter((id) => !offered.some((model) => model.id === id))
@@ -61,14 +78,35 @@ export function Models(props: { api: Api; status: Status; gateway: Gateway; onDo
           </span>
           <span className="choice-text">
             <span className="row-label">All models</span>
-            <span className="choice-note">Every chat model on Oxen, added to Claude for you.</span>
+            <span className="choice-note">Every chat model Oxen offers.</span>
           </span>
         </button>
       </div>
 
-      <p className="section-title">Or choose which to show</p>
+      <div className="section-head">
+        <span className="section-title">
+          {offered.length > 0
+            ? `${offered.length} ${offered.length === 1 ? "model" : "models"} from Oxen`
+            : "Models from Oxen"}
+        </span>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Refresh models"
+          title="Refresh models"
+          disabled={refresh.busy}
+          onClick={() => void refresh.run()}
+        >
+          {refresh.busy ? <Spinner /> : <Refresh />}
+        </button>
+      </div>
+      {refreshed && !refresh.busy && gateway.state === "ok" && (
+        <p className="refresh-result" role="status">
+          {status.needsRestart ? "Updated. Restart Claude to see the changes." : "Up to date"}
+        </p>
+      )}
 
-      {gateway.state === "checking" && (
+      {gateway.state === "checking" && all.length === 0 && (
         <p className="empty">
           <Spinner /> Loading models…
         </p>

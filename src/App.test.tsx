@@ -233,6 +233,42 @@ describe("choosing models", () => {
     expect(await within(row).findByText("All 4")).toBeVisible();
   });
 
+  it("says how many models Oxen offers", async () => {
+    await openModels();
+    expect(await screen.findByText("4 models from Oxen")).toBeVisible();
+  });
+
+  it("refreshes the list from Oxen and says when nothing changed", async () => {
+    const { user, calls } = await openModels();
+    const before = calls.filter((call) => call === "check").length;
+
+    await user.click(screen.getByRole("button", { name: "Refresh models" }));
+
+    expect(await screen.findByText("Up to date")).toBeVisible();
+    expect(calls.filter((call) => call === "check").length).toBe(before + 1);
+    expect(screen.getByRole("checkbox", { name: /Claude Sonnet 5.5/ })).toBeVisible();
+  });
+
+  it("says when a refresh changed Claude's list", async () => {
+    const view = open({ status: { ...connectedStatus, claudeRunning: false }, checkUpdatesClaude: true });
+    await view.user.click(await screen.findByRole("button", { name: /^Models/ }));
+    view.update({ claudeRunning: true });
+
+    await view.user.click(await screen.findByRole("button", { name: "Refresh models" }));
+
+    expect(await screen.findByText("Updated. Restart Claude to see the changes.")).toBeVisible();
+  });
+
+  it("keeps the list on screen while refreshing", async () => {
+    const { user } = await openModels({ status: connectedStatus, latency: 40 });
+    await screen.findByRole("checkbox", { name: /Claude Sonnet 5.5/ });
+
+    await user.click(screen.getByRole("button", { name: "Refresh models" }));
+
+    expect(screen.getByRole("checkbox", { name: /Claude Sonnet 5.5/ })).toBeVisible();
+    expect(await screen.findByText("Up to date")).toBeVisible();
+  });
+
   it("saves the chosen models with the first pick as the default", async () => {
     const { user, calls } = await openModels();
     await user.click(screen.getByRole("checkbox", { name: /Claude Sonnet 5.5/ }));

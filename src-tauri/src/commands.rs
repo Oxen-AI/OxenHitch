@@ -24,7 +24,12 @@ pub fn status(hitch: Shared) -> Status {
 /// `None` when there is no key to check.
 #[tauri::command]
 pub async fn check_gateway(app: AppHandle, hitch: Shared<'_>) -> CommandResult<Option<Check>> {
-    let hitch = hitch.inner().clone();
+    refresh(&app, hitch.inner()).await
+}
+
+/// Asks Oxen what it offers, remembers the answer, and rewrites Claude's model list if it
+/// has fallen behind. Runs when Hitch starts, whenever the popover opens, and on Refresh.
+pub async fn refresh(app: &AppHandle, hitch: &Arc<Hitch>) -> CommandResult<Option<Check>> {
     let reader = hitch.clone();
     let (key, base_url) = blocking(move || Ok((reader.api_key(), reader.status().base_url)))
         .await
@@ -33,13 +38,13 @@ pub async fn check_gateway(app: AppHandle, hitch: Shared<'_>) -> CommandResult<O
         return Ok(None);
     };
     let check = gateway::check(&base_url, &key).await;
-    remember(&hitch, &check).await;
-    // If Oxen now offers something Claude's list lacks, update the list. The status that
-    // follows tells the UI a restart of Claude is needed.
+    remember(hitch, &check).await;
+
+    // A changed list means Claude needs a restart; the status sent here tells the UI.
     let syncing = hitch.clone();
     if let Ok(true) = blocking(move || syncing.sync_models()).await {
         let status = hitch.status();
-        tray::reflect(&app, &status);
+        tray::reflect(app, &status);
         let _ = app.emit(STATUS_EVENT, &status);
     }
     Ok(Some(check))

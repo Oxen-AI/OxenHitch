@@ -62,6 +62,20 @@ export function Check() {
   );
 }
 
+export function Refresh() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path
+        d="M12 7a5 5 0 1 1-1.600-3.660M12 2.400v3h-3"
+        stroke="currentColor"
+        strokeWidth="1.500"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function Arrow() {
   return (
     <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden="true">

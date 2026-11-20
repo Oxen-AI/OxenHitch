@@ -6,15 +6,15 @@ import { Home } from "./views/Home";
 import { Models } from "./views/Models";
 import { NoClaude, Welcome } from "./views/Welcome";
 
-type View = "home" | "models" | "connection";
+export type View = "home" | "models" | "connection";
 
 /** What we know about the gateway: still asking, no key to ask with, or the answer. */
 export type Gateway = { state: "checking" } | { state: "no_key" } | Check;
 
-export default function App({ api }: { api: Api }) {
+export default function App({ api, initialView = "home" }: { api: Api; initialView?: View }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [gateway, setGateway] = useState<Gateway>({ state: "checking" });
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>(initialView);
   const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,9 +44,10 @@ export default function App({ api }: { api: Api }) {
     return () => window.removeEventListener("focus", checkGateway);
   }, [configured, baseUrl, keyHint, checkGateway]);
 
+  // Once Hitch is no longer set up (after Remove), sub-screens have nothing to show.
   useEffect(() => {
-    if (!configured) setView("home");
-  }, [configured]);
+    if (status && !configured) setView("home");
+  }, [status, configured]);
 
   // The window is exactly as tall as its content.
   useLayoutEffect(() => {
@@ -83,7 +84,7 @@ function Screen(props: {
   gateway: Gateway;
   view: View;
   setView: (view: View) => void;
-  checkGateway: () => void;
+  checkGateway: () => Promise<void>;
 }) {
   const { api, status, gateway, view, setView } = props;
   const home = () => setView("home");
@@ -92,7 +93,7 @@ function Screen(props: {
     return status.claudeInstalled ? <Welcome api={api} status={status} /> : <NoClaude api={api} />;
   }
   if (view === "models") {
-    return <Models api={api} status={status} gateway={gateway} onDone={home} />;
+    return <Models api={api} status={status} gateway={gateway} onRefresh={props.checkGateway} onDone={home} />;
   }
   if (view === "connection") {
     return <Connection api={api} status={status} onDone={home} />;
