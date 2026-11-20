@@ -20,9 +20,10 @@ pub fn status(hitch: Shared) -> Status {
     hitch.status()
 }
 
-/// Checks the stored key against the gateway. `None` when there is no key to check.
+/// Checks the saved key against the gateway and brings Claude's model list up to date.
+/// `None` when there is no key to check.
 #[tauri::command]
-pub async fn check_gateway(hitch: Shared<'_>) -> CommandResult<Option<Check>> {
+pub async fn check_gateway(app: AppHandle, hitch: Shared<'_>) -> CommandResult<Option<Check>> {
     let hitch = hitch.inner().clone();
     let reader = hitch.clone();
     let (key, base_url) = blocking(move || Ok((reader.api_key(), reader.status().base_url)))
@@ -33,6 +34,14 @@ pub async fn check_gateway(hitch: Shared<'_>) -> CommandResult<Option<Check>> {
     };
     let check = gateway::check(&base_url, &key).await;
     remember(&hitch, &check).await;
+    // If Oxen now offers something Claude's list lacks, update the list. The status that
+    // follows tells the UI a restart of Claude is needed.
+    let syncing = hitch.clone();
+    if let Ok(true) = blocking(move || syncing.sync_models()).await {
+        let status = hitch.status();
+        tray::reflect(&app, &status);
+        let _ = app.emit(STATUS_EVENT, &status);
+    }
     Ok(Some(check))
 }
 

@@ -155,8 +155,7 @@ hides most of what Oxen offers. Hitch therefore writes `inferenceModels` itself:
 - With nothing chosen in Hitch, every model is listed (Anthropic's first). Choosing models narrows
   the list; the first choice is Claude's default.
 - Hitch remembers the last list it saw so it can rewrite the profile without the network.
-- The list is refreshed when connecting and when choosing models. It is not rewritten in the
-  background, because every rewrite needs a Claude restart.
+- The list is kept up to date automatically (see "Sync Claude's model list automatically" below).
 
 Decided by Greg.
 
@@ -190,3 +189,19 @@ unsigned builds. Meanwhile the Oxen CLI already stores a token per host in
 
 The trade-off is that the key sits in a plain-text file readable by the user's own programs,
 rather than in the keychain. That is already true for every Oxen CLI user. Suggested by Greg.
+
+## 2026-11-19 — Sync Claude's model list automatically
+
+At first Hitch only rewrote the model list when the user changed something in Hitch. In practice
+that meant Claude kept showing a stale list and nobody knew why. Now, every time Hitch checks the
+gateway (at launch and whenever the popover opens) it compares what Oxen offers with what Claude's
+profile holds, and rewrites the profile if they differ. The user is then asked to restart Claude,
+as with any other change.
+
+Guards, because each rewrite costs a restart:
+- Only while Claude is set to use Oxen. Switched off, the list is refreshed on switching back on.
+  A setup someone else changed is left alone.
+- With every model shown, order is ignored, since Oxen may list models differently between calls.
+- An empty answer never empties Claude's list: it means Oxen could not be asked.
+
+A list written by hand into Hitch's profile is replaced. Reported by Greg.

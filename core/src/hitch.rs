@@ -150,6 +150,43 @@ impl Hitch {
         Ok(())
     }
 
+    /// Brings Claude's model list up to date with what Oxen offers, if it is not already.
+    /// Returns whether anything was written (which means Claude needs a restart).
+    ///
+    /// Only acts while Claude is set to use Oxen. When Oxen is switched off the list is
+    /// refreshed on switching back on, and a setup changed by someone else is not touched.
+    pub fn sync_models(&self) -> Result<bool> {
+        let state = self.state.load();
+        let Some(id) = &state.profile_id else {
+            return Ok(false);
+        };
+        if self.link(&state) != Link::Connected {
+            return Ok(false);
+        }
+        let wanted: Vec<serde_json::Value> = models::entries_for(&state.models, &state.catalog)
+            .iter()
+            .map(models::ModelEntry::to_config)
+            .collect();
+        // Knowing of no models means Oxen could not be asked, not that it has none.
+        if wanted.is_empty() {
+            return Ok(false);
+        }
+        let current = library::profile_models(&self.paths, id);
+        // With every model shown, order carries no choice of the user's, and Oxen may list
+        // them differently from one request to the next. Each rewrite costs a restart of
+        // Claude, so only a real difference counts.
+        let up_to_date = if state.models.is_empty() {
+            sorted(&wanted) == sorted(&current)
+        } else {
+            wanted == current
+        };
+        if up_to_date {
+            return Ok(false);
+        }
+        self.connect(None, None)?;
+        Ok(true)
+    }
+
     /// Chooses which models Claude shows, default first. Empty shows every model Oxen offers.
     pub fn set_models(&self, models: Vec<String>) -> Result<Status> {
         let mut state = self.configured()?;
@@ -227,6 +264,12 @@ impl Hitch {
             .or_else(|| std::env::var("HITCH_BASE_URL").ok())
             .unwrap_or_else(|| DEFAULT_BASE_URL.into())
     }
+}
+
+fn sorted(entries: &[serde_json::Value]) -> Vec<String> {
+    let mut texts: Vec<String> = entries.iter().map(|entry| entry.to_string()).collect();
+    texts.sort();
+    texts
 }
 
 /// `hub.oxen.ai` from `https://hub.oxen.ai/api/ai`: the name keys are saved under.
@@ -557,6 +600,94 @@ mod tests {
 
         assert!(applied_profile(&w.hitch).get("inferenceModels").is_none());
         assert!(!w.hitch.status().needs_restart, "remembering must not touch Claude");
+    }
+
+    /// A machine connected before Hitch knew what Oxen offers, with Claude restarted since.
+    fn connected_without_models() -> World {
+        let w = world(FakeClaude::running_since(1));
+        w.hitch.connect(Some("k".into()), None).unwrap();
+        w.hitch.restart_claude().unwrap();
+        assert!(!w.hitch.status().needs_restart);
+        w
+    }
+
+    #[test]
+    fn syncing_gives_claude_the_models_it_is_missing_and_asks_for_a_restart() {
+        let w = connected_without_models();
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+        w.claude.started_at.store(2, Ordering::SeqCst);
+
+        assert!(w.hitch.sync_models().unwrap(), "the list changed");
+
+        assert_eq!(applied_profile(&w.hitch)["inferenceModels"].as_array().unwrap().len(), 2);
+        assert!(w.hitch.status().needs_restart);
+    }
+
+    #[test]
+    fn syncing_replaces_a_list_someone_wrote_by_hand() {
+        let w = connected_without_models();
+        let id = w.hitch.state.load().profile_id.unwrap();
+        let mut profile = applied_profile(&w.hitch);
+        profile["inferenceModels"] = json!([{"name": "claude-via-inim-5-tpg", "labelOverride": "GPT 5 Mini"}]);
+        fs::write(w.hitch.paths.profile_file(&id), profile.to_string()).unwrap();
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+
+        assert!(w.hitch.sync_models().unwrap());
+        assert_eq!(applied_profile(&w.hitch)["inferenceModels"][0], "claude-opus-5-5");
+    }
+
+    #[test]
+    fn syncing_again_changes_nothing_even_if_oxen_lists_models_in_another_order() {
+        let w = connected_without_models();
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+        w.hitch.sync_models().unwrap();
+        w.hitch.restart_claude().unwrap();
+        let before = applied_profile(&w.hitch);
+
+        let mut shuffled = oxen_catalog();
+        shuffled.push(Model { developer: Some("anthropic".into()), ..Model::named("claude-haiku-5-5") });
+        w.hitch.remember_catalog(shuffled.clone()).unwrap();
+        w.hitch.sync_models().unwrap();
+        w.hitch.restart_claude().unwrap();
+        let with_three = applied_profile(&w.hitch);
+        assert_ne!(with_three, before, "a new model is a real change");
+
+        shuffled.reverse();
+        w.hitch.remember_catalog(shuffled).unwrap();
+        assert!(!w.hitch.sync_models().unwrap(), "same models, different order");
+        assert_eq!(applied_profile(&w.hitch), with_three);
+        assert!(!w.hitch.status().needs_restart);
+    }
+
+    #[test]
+    fn syncing_leaves_claude_alone_when_oxen_is_not_what_claude_is_using() {
+        // Not set up.
+        let fresh = world(FakeClaude::not_running());
+        fresh.hitch.remember_catalog(oxen_catalog()).unwrap();
+        assert!(!fresh.hitch.sync_models().unwrap());
+        assert!(!fresh.hitch.paths.data_dir.exists());
+
+        // Switched off: the list is brought up to date when Oxen is switched back on.
+        let paused = connected_without_models();
+        paused.hitch.set_routing(false).unwrap();
+        paused.hitch.remember_catalog(oxen_catalog()).unwrap();
+        assert!(!paused.hitch.sync_models().unwrap());
+        assert_eq!(paused.hitch.status().link, Link::Paused);
+        assert!(applied_profile(&paused.hitch).get("inferenceModels").is_none());
+        assert_eq!(paused.hitch.set_routing(true).unwrap().link, Link::Connected);
+        assert_eq!(applied_profile(&paused.hitch)["inferenceModels"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn syncing_never_empties_claudes_list_because_oxen_could_not_be_asked() {
+        let w = connected_without_models();
+        w.hitch.remember_catalog(oxen_catalog()).unwrap();
+        w.hitch.sync_models().unwrap();
+
+        w.hitch.remember_catalog(vec![]).unwrap();
+
+        assert!(!w.hitch.sync_models().unwrap());
+        assert_eq!(applied_profile(&w.hitch)["inferenceModels"].as_array().unwrap().len(), 2);
     }
 
     #[test]

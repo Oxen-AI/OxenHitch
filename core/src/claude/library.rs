@@ -79,6 +79,13 @@ pub fn snapshot(paths: &ClaudePaths) -> Snapshot {
     }
 }
 
+/// The model list a profile holds right now, exactly as written.
+pub fn profile_models(paths: &ClaudePaths, id: &str) -> Vec<Value> {
+    read_object(&paths.profile_file(id))
+        .and_then(|profile| profile.get(MODELS).and_then(Value::as_array).cloned())
+        .unwrap_or_default()
+}
+
 /// Writes the profile, makes it the applied one, and puts Claude in third-party mode.
 pub fn apply_profile(paths: &ClaudePaths, id: &str, profile: &GatewayProfile) -> Result<()> {
     let file = paths.profile_file(id);
