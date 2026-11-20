@@ -7,7 +7,7 @@ Oxen API key, click Connect, restart Claude. No developer mode, no settings file
 
 - [Before you start](#before-you-start)
 - [Install](#install)
-- [Set up](#set-up)
+- [Set up](#set-up), including [bringing over your chats](#4-bring-over-your-chats-optional)
 - [Everyday use](#everyday-use)
 - [Claude Code](#claude-code)
 - [Set up by hand with Developer Mode](#set-up-by-hand-with-developer-mode)
@@ -60,6 +60,29 @@ model from Claude's model menu as usual. Hitch's home screen shows whether Claud
 whether Oxen is reachable.
 
 <img src="docs/images/home.png" width="389" alt="Hitch showing Claude running on Oxen">
+
+### 4. Bring over your chats (optional)
+
+On Oxen, Claude keeps your conversations on this Mac, so it starts with an empty history. You can
+copy in what you had on claude.ai. Hitch switches this option on when it connects Claude.
+
+1. In Claude, open **Settings** (**Claude → Settings…** in the menu bar, or **⌘ ,**) and choose
+   **Import & export**.
+2. Click **Import…**
+
+   <img src="docs/images/claude-import-settings.png" width="700" alt="Claude's Import and export settings, with an Import button and a list of earlier imports">
+
+3. **Chats.** Click **Sign in to claude.ai…** to fetch your chats and projects directly. Or
+   export them yourself on claude.ai (**Settings → Privacy → Export data**) and pick the `.zip`
+   with **Choose file…** Then click **Continue**.
+
+   <img src="docs/images/claude-import-wizard.png" width="520" alt="Claude's import window on its first step, Chats, with Sign in to claude.ai and Choose file buttons">
+
+4. **Cowork & Code.** Choose the Cowork and Claude Code sessions to bring over, or skip the step.
+5. **Review.** Check the summary and finish.
+
+Each import is a one-time copy and does not stay in sync with claude.ai. Everything you imported
+is listed under **Import history** on the same settings page, where **Remove** takes it out again.
 
 ## Everyday use
 
