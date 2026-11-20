@@ -87,6 +87,38 @@ describe("once connected", () => {
     expect(screen.getByText("••••1234")).toBeVisible();
   });
 
+  it("shows that it sees Claude running", async () => {
+    open({ status: connectedStatus });
+    const row = (await screen.findByText("Claude Desktop")).closest(".row") as HTMLElement;
+    expect(within(row).getByText("Running")).toBeVisible();
+  });
+
+  it("shows that it sees Claude is not running", async () => {
+    open({ status: { ...connectedStatus, claudeRunning: false } });
+    const row = (await screen.findByText("Claude Desktop")).closest(".row") as HTMLElement;
+    expect(within(row).getByText("Not running")).toBeVisible();
+  });
+
+  it("restarts Claude for the user and says so while it happens", async () => {
+    const { user, calls } = open({
+      status: { ...connectedStatus, needsRestart: true },
+      latency: 40,
+    });
+    await user.click(await screen.findByRole("button", { name: "Restart Claude" }));
+
+    expect(await screen.findByRole("button", { name: "Restarting Claude…" })).toBeDisabled();
+    expect(await screen.findByRole("heading", { name: "Claude is running on Oxen" })).toBeVisible();
+    expect(calls).toContain("restartClaude");
+    expect(screen.queryByRole("button", { name: /Restart/ })).not.toBeInTheDocument();
+  });
+
+  it("says so while it opens Claude", async () => {
+    const { user } = open({ status: { ...connectedStatus, claudeRunning: false }, latency: 40 });
+    await user.click(await screen.findByRole("button", { name: "Open Claude" }));
+    expect(await screen.findByRole("button", { name: "Opening Claude…" })).toBeDisabled();
+    expect(await screen.findByRole("heading", { name: "Claude is running on Oxen" })).toBeVisible();
+  });
+
   it("offers to open Claude when it is not running", async () => {
     const { user, calls } = open({ status: { ...connectedStatus, claudeRunning: false } });
     expect(await screen.findByRole("heading", { name: "Claude is set to use Oxen" })).toBeVisible();

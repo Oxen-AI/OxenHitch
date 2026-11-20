@@ -106,3 +106,12 @@ The app icon, the in-app mark and the menu-bar glyph all come from Oxen's own lo
 into `design/oxen-x-black.svg` and `design/oxen-x-white.svg`. `design/icon.svg`, `design/tray.svg`
 and `design/tray-off.svg` are generated from them; the PNG/ICNS files in `src-tauri/icons/` are
 rendered from those. This replaced an invented placeholder glyph. Requested by Greg.
+
+## 2026-11-19 — Restart means quit, wait, open, wait
+
+"Restart Claude" asks Claude to quit the normal way (so it can save its state), waits until the
+process is really gone, opens it, then waits until it is really running before reporting success.
+Opening too early only brings the old process forward with its old settings; returning too early
+leaves the UI saying Claude is not running. If Claude will not quit (it may be showing a dialog)
+Hitch says so and does not open a second copy. The home screen also shows a "Claude Desktop" row
+(Running / Not running) so it is clear what Hitch detected. Requested by Greg.

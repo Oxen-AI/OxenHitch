@@ -81,7 +81,7 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
       </div>
 
       {status.needsRestart && (
-        <RestartPrompt api={api} label="Restart Claude" note="Claude is still running with its old settings." />
+        <RestartPrompt api={api} note="Claude is still running with its old settings." />
       )}
     </main>
   );

@@ -86,9 +86,9 @@ export function Home(props: {
             {routing.busy ? <Spinner /> : null} Reconnect
           </button>
         ) : status.needsRestart ? (
-          <RestartPrompt api={api} label="Restart Claude" />
+          <RestartPrompt api={api} />
         ) : !status.claudeRunning && on ? (
-          <RestartPrompt api={api} label="Open Claude" quiet />
+          <RestartPrompt api={api} opening />
         ) : null}
         {routing.error && <Notice>{routing.error}</Notice>}
       </section>
@@ -108,6 +108,13 @@ export function Home(props: {
             disabled={routing.busy}
             onChange={(enabled) => void routing.run(enabled)}
           />
+        </div>
+        <div className="row">
+          <span className="row-label">Claude Desktop</span>
+          <span className="row-value">
+            <span className={`dot ${status.claudeRunning ? "dot-good" : ""}`} />
+            {status.claudeRunning ? "Running" : "Not running"}
+          </span>
         </div>
         <GatewayRow gateway={gateway} host={hostOf(status.baseUrl)} onRetry={props.onRetry} />
         <button type="button" className="row row-link" onClick={() => props.onOpen("models")}>
@@ -136,19 +143,30 @@ export function Home(props: {
   );
 }
 
-/** Restarting (or opening) Claude is always the user's click, never automatic. */
-export function RestartPrompt(props: { api: Api; label: string; note?: string; quiet?: boolean }) {
+/**
+ * Quits and reopens Claude for the user (or just opens it). Always their click, never
+ * automatic: a restart can interrupt a chat or a task that is still running.
+ */
+export function RestartPrompt(props: { api: Api; note?: string; opening?: boolean }) {
   const restart = useAction(() => props.api.restartClaude());
+  const label = props.opening ? "Open Claude" : "Restart Claude";
+  const working = props.opening ? "Opening Claude…" : "Restarting Claude…";
   return (
     <div className="restart">
       {props.note && <p className="detail">{props.note}</p>}
       <button
         type="button"
-        className={`button compact ${props.quiet ? "secondary" : "primary"}`}
+        className={`button compact ${props.opening ? "secondary" : "primary"}`}
         disabled={restart.busy}
         onClick={() => void restart.run()}
       >
-        {restart.busy ? <Spinner /> : null} {props.label}
+        {restart.busy ? (
+          <>
+            <Spinner /> {working}
+          </>
+        ) : (
+          label
+        )}
       </button>
       {restart.error && <Notice>{restart.error}</Notice>}
     </div>
