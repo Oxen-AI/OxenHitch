@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import oxenMark from "../assets/oxen-x-white.svg";
+
 export function Switch(props: {
   label: string;
   checked: boolean;
@@ -25,16 +27,9 @@ export function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
 }
 
-/** The Oxen yoke. Inherits the text color. */
-export function Yoke({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" aria-hidden="true">
-      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-        <path strokeWidth="4.4" d="M6 14c5.5 0 8 2.600 16 2.600S32.500 14 38 14" />
-        <path strokeWidth="3.600" d="M14.200 17.800v9.700a7.800 7.800 0 0 0 15.600 0v-9.700" />
-      </g>
-    </svg>
-  );
+/** The Oxen mark, in white. It only ever sits on a dark tile. */
+export function OxenMark({ size = 22 }: { size?: number }) {
+  return <img className="oxen-mark" src={oxenMark} height={size} alt="" draggable={false} />;
 }
 
 /** A plain chat bubble standing in for Claude. */

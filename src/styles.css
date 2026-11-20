@@ -205,6 +205,12 @@ p {
   justify-content: center;
 }
 
+.oxen-mark {
+  display: block;
+  width: auto;
+  pointer-events: none;
+}
+
 /* ---------- Home hero ---------- */
 
 .hero {

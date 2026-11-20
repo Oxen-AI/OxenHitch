@@ -1,23 +1,24 @@
 import { useState } from "react";
 
-import type { Api, Status } from "../lib/api";
+import { hostLabel, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
 import { Check, Field, Notice, Spinner, SubHeader } from "../components/ui";
 
-/** Replace the key, change the gateway, test it, or take Oxen out of Claude. */
+/** Replace the key, change the host, test it, or take Oxen out of Claude. */
 export function Connection(props: { api: Api; status: Status; onDone: () => void }) {
   const { api, status, onDone } = props;
   const [key, setKey] = useState("");
-  const [address, setAddress] = useState(status.baseUrl);
+  const currentHost = hostLabel(status.baseUrl);
+  const [host, setHost] = useState(currentHost);
   const [answeredBy, setAnsweredBy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   const newKey = key.trim();
-  const newAddress = address.trim() !== status.baseUrl ? address.trim() : "";
-  const dirty = newKey !== "" || newAddress !== "";
+  const newHost = host.trim() !== currentHost ? host.trim() : "";
+  const dirty = newKey !== "" || newHost !== "";
 
   const save = useAction(async () => {
-    await api.connect({ apiKey: newKey || undefined, baseUrl: newAddress || undefined });
+    await api.connect({ apiKey: newKey || undefined, baseUrl: newHost || undefined });
     onDone();
   });
   const test = useAction(async () => {
@@ -43,7 +44,14 @@ export function Connection(props: { api: Api; status: Status; onDone: () => void
           onChange={setKey}
           onEnter={submit}
         />
-        <Field label="Gateway address" showLabel value={address} onChange={setAddress} onEnter={submit} />
+        <Field
+          label="Host"
+          showLabel
+          placeholder="hub.oxen.ai"
+          value={host}
+          onChange={setHost}
+          onEnter={submit}
+        />
         {save.error && <Notice>{save.error}</Notice>}
         <button type="button" className="button primary" disabled={!dirty || save.busy} onClick={submit}>
           {save.busy ? (

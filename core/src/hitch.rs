@@ -312,9 +312,20 @@ mod tests {
     }
 
     #[test]
+    fn a_host_alone_is_enough_to_change_gateways() {
+        let w = world(FakeClaude::not_running());
+        let status = w.hitch.connect(Some("k".into()), Some("localhost:3001".into())).unwrap();
+        assert_eq!(status.base_url, "http://localhost:3001/api/ai");
+        assert_eq!(
+            applied_profile(&w.hitch)["inferenceGatewayBaseUrl"],
+            "http://localhost:3001/api/ai"
+        );
+    }
+
+    #[test]
     fn a_bad_gateway_address_is_refused() {
         let w = world(FakeClaude::not_running());
-        assert!(w.hitch.connect(Some("k".into()), Some("hub.oxen.ai".into())).is_err());
+        assert!(w.hitch.connect(Some("k".into()), Some("not a host".into())).is_err());
         assert_eq!(w.hitch.status().link, Link::NotConfigured);
     }
 

@@ -1,20 +1,21 @@
 import { useState } from "react";
 
-import { links, type Api, type Status } from "../lib/api";
+import { hostLabel, links, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
-import { Arrow, Field, Notice, Spinner, Yoke } from "../components/ui";
+import { Arrow, Field, Notice, OxenMark, Spinner } from "../components/ui";
 import { RestartPrompt } from "./Home";
 
 /** First run: one field, one button. */
 export function Welcome({ api, status }: { api: Api; status: Status }) {
   const [key, setKey] = useState("");
-  const [address, setAddress] = useState(status.baseUrl);
+  const currentHost = hostLabel(status.baseUrl);
+  const [host, setHost] = useState(currentHost);
   const [custom, setCustom] = useState(false);
 
   const connect = useAction(() =>
     api.connect({
       apiKey: key,
-      baseUrl: custom && address.trim() !== status.baseUrl ? address.trim() : undefined,
+      baseUrl: custom && host.trim() !== currentHost ? host.trim() : undefined,
     }),
   );
   const ready = key.trim() !== "" && !connect.busy;
@@ -25,7 +26,7 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
   return (
     <main className="screen welcome">
       <div className="app-tile">
-        <Yoke size={30} />
+        <OxenMark size={28} />
       </div>
       <h1>Run Claude on Oxen</h1>
       <p className="lede">Paste your Oxen API key and Hitch sets up Claude Desktop for you.</p>
@@ -45,10 +46,14 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
         />
         {custom && (
           <Field
-            label="Gateway address"
+            label="Host"
             showLabel
-            value={address}
-            onChange={setAddress}
+            placeholder="hub.oxen.ai"
+            value={host}
+            onChange={(value) => {
+              setHost(value);
+              connect.clearError();
+            }}
             onEnter={submit}
           />
         )}
@@ -70,7 +75,7 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
         </button>
         {!custom && (
           <button type="button" className="text-link quiet" onClick={() => setCustom(true)}>
-            Use a different gateway
+            Use a different host
           </button>
         )}
       </div>
@@ -86,7 +91,7 @@ export function NoClaude({ api }: { api: Api }) {
   return (
     <main className="screen welcome">
       <div className="app-tile">
-        <Yoke size={30} />
+        <OxenMark size={28} />
       </div>
       <h1>Install Claude first</h1>
       <p className="lede">

@@ -1,7 +1,16 @@
 // A stand-in backend with the same behavior as the real one. Used by tests, and by
 // `pnpm dev` in a browser so the UI can be worked on without the desktop shell.
 
-import type { Api, Check, Model, Status } from "./api";
+import { isLocalHost, type Api, type Check, type Model, type Status } from "./api";
+
+/** What the real backend does with a typed host: fill in the scheme and gateway path. */
+function toBaseUrl(input: string): string {
+  const text = input.trim().replace(/\/+$/, "");
+  if (text.includes("://")) return /^https?:\/\/[^/]+$/.test(text) ? `${text}/api/ai` : text;
+  const [host, ...path] = text.split("/");
+  const scheme = isLocalHost(host) ? "http" : "https";
+  return `${scheme}://${host}${path.length ? `/${path.join("/")}` : "/api/ai"}`;
+}
 
 export const fakeModels: Model[] = [
   { id: "claude-opus-5-5", name: "Claude Opus 5.5" },
@@ -64,7 +73,7 @@ export function createFakeApi(options: FakeOptions = {}) {
       return update({
         link: "connected",
         keyHint: key ? key.slice(-4) : status.keyHint,
-        baseUrl: baseUrl?.trim() || status.baseUrl,
+        baseUrl: baseUrl?.trim() ? toBaseUrl(baseUrl) : status.baseUrl,
         needsRestart: status.claudeRunning,
       });
     },

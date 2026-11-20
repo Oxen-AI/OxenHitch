@@ -4,7 +4,7 @@ import pkg from "../../package.json";
 import type { Gateway } from "../App";
 import { hostOf, type Api, type Status } from "../lib/api";
 import { useAction } from "../lib/useAction";
-import { Bubble, Chevron, Notice, Spinner, Switch, Yoke } from "../components/ui";
+import { Bubble, Chevron, Notice, OxenMark, Spinner, Switch } from "../components/ui";
 
 type Tone = "on" | "pending" | "off" | "trouble";
 
@@ -70,7 +70,7 @@ export function Home(props: {
             <span className="bead" />
           </div>
           <div className="node node-oxen">
-            <Yoke />
+            <OxenMark size={20} />
           </div>
         </div>
         <h1>{title}</h1>

@@ -31,22 +31,52 @@ pub enum Check {
     Failed { message: String },
 }
 
-/// Tidies what a person might paste: surrounding space, trailing slashes, and a
-/// trailing `/v1` (Claude adds that itself).
+/// Where the gateway lives on an Oxen host.
+const GATEWAY_PATH: &str = "/api/ai";
+
+/// Turns what a person types into the gateway's base URL.
+///
+/// A host is enough: `hub.oxen.ai` becomes `https://hub.oxen.ai/api/ai`, and a host on
+/// this machine (`localhost:3001`) uses plain http. A full URL is kept as given, minus
+/// surrounding space, trailing slashes, and a trailing `/v1` (Claude adds that itself).
 pub fn normalize_base_url(input: &str) -> Result<String> {
-    let mut url = input.trim().trim_end_matches('/');
-    if let Some(stripped) = url.strip_suffix("/v1") {
-        url = stripped.trim_end_matches('/');
+    let refused = || Error::invalid("Enter a host like hub.oxen.ai or localhost:3001.");
+    let text = input.trim();
+    if text.is_empty() || text.contains(char::is_whitespace) {
+        return Err(refused());
     }
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"));
-    match rest {
-        Some(host) if !host.is_empty() && !host.contains(char::is_whitespace) => Ok(url.into()),
-        _ => Err(Error::invalid(
-            "The gateway address should look like https://hub.oxen.ai/api/ai",
-        )),
+
+    let (scheme, rest) = match text.split_once("://") {
+        Some((scheme @ ("http" | "https"), rest)) => (Some(scheme), rest),
+        Some(_) => return Err(refused()),
+        None => (None, text),
+    };
+    let rest = rest.trim_end_matches('/');
+    let rest = rest.strip_suffix("/v1").unwrap_or(rest).trim_end_matches('/');
+    let (host, path) = match rest.find('/') {
+        Some(slash) => rest.split_at(slash),
+        None => (rest, ""),
+    };
+
+    let local = is_local(host);
+    // A bare word is far more likely a typo than a machine on the network.
+    let host_like = local || host.contains('.') || host.contains(':');
+    if host.is_empty() || (scheme.is_none() && !host_like) {
+        return Err(refused());
     }
+
+    let scheme = scheme.unwrap_or(if local { "http" } else { "https" });
+    let path = if path.is_empty() { GATEWAY_PATH } else { path };
+    Ok(format!("{scheme}://{host}{path}"))
+}
+
+/// A host on this machine, where there is no TLS to speak of.
+fn is_local(host: &str) -> bool {
+    if host.starts_with("[::1]") {
+        return true;
+    }
+    let name = host.split(':').next().unwrap_or(host);
+    name == "localhost" || name == "0.0.0.0" || name.starts_with("127.")
 }
 
 /// Lists the gateway's models, which also proves the key works.
@@ -70,7 +100,7 @@ pub async fn check(base_url: &str, api_key: &str) -> Check {
         // The server is there but has no model list at this path: almost always a wrong address.
         return Check::Failed {
             message: format!(
-                "{} is reachable, but there is no Oxen gateway at this address. Check the gateway address.",
+                "{} is reachable, but there is no Oxen gateway on it. Check the host.",
                 host(base_url)
             ),
         };
@@ -186,11 +216,31 @@ mod tests {
         assert_eq!(ok("https://hub.oxen.ai/api/ai/v1"), "https://hub.oxen.ai/api/ai");
         assert_eq!(ok("https://hub.oxen.ai/api/ai/v1/"), "https://hub.oxen.ai/api/ai");
         assert_eq!(ok("http://localhost:3001/api/ai"), "http://localhost:3001/api/ai");
+        assert_eq!(ok("https://proxy.example.com/oxen"), "https://proxy.example.com/oxen");
     }
 
     #[test]
-    fn things_that_are_not_addresses_are_refused() {
-        for bad in ["", "hub.oxen.ai", "ftp://x", "https://", "https://a b"] {
+    fn a_bare_host_becomes_the_gateway_on_that_host() {
+        let ok = |input: &str| normalize_base_url(input).unwrap();
+        assert_eq!(ok("hub.oxen.ai"), "https://hub.oxen.ai/api/ai");
+        assert_eq!(ok(" staging.oxen.ai/ "), "https://staging.oxen.ai/api/ai");
+        assert_eq!(ok("https://hub.oxen.ai"), "https://hub.oxen.ai/api/ai");
+        assert_eq!(ok("oxen.internal:8443"), "https://oxen.internal:8443/api/ai");
+        assert_eq!(ok("hub.oxen.ai/api/ai"), "https://hub.oxen.ai/api/ai");
+    }
+
+    #[test]
+    fn a_host_on_this_machine_is_reached_without_tls() {
+        let ok = |input: &str| normalize_base_url(input).unwrap();
+        assert_eq!(ok("localhost:3001"), "http://localhost:3001/api/ai");
+        assert_eq!(ok("127.0.0.1:3001"), "http://127.0.0.1:3001/api/ai");
+        assert_eq!(ok("localhost"), "http://localhost/api/ai");
+        assert_eq!(ok("https://localhost:3001"), "https://localhost:3001/api/ai");
+    }
+
+    #[test]
+    fn things_that_are_not_hosts_are_refused() {
+        for bad in ["", "   ", "oxen", "ftp://x.com", "https://", "hub oxen.ai", "https://a b"] {
             assert!(normalize_base_url(bad).is_err(), "{bad:?} should be refused");
         }
     }
@@ -247,7 +297,7 @@ mod tests {
             panic!("a 404 is a failure, not a bad key");
         };
         assert!(message.ends_with(
-            "is reachable, but there is no Oxen gateway at this address. Check the gateway address."
+            "is reachable, but there is no Oxen gateway on it. Check the host."
         ));
     }
 

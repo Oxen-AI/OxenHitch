@@ -83,6 +83,20 @@ export function messageOf(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
+/**
+ * What to show in the Host field. A standard Oxen gateway is shown as just its host,
+ * because typing that host back produces the same address. Anything else is shown whole.
+ */
+export function hostLabel(baseUrl: string): string {
+  const match = /^(https?):\/\/([^/]+)\/api\/ai$/.exec(baseUrl);
+  if (!match) return baseUrl;
+  const [, scheme, host] = match;
+  return scheme === (isLocalHost(host) ? "http" : "https") ? host : baseUrl;
+}
+
+export const isLocalHost = (host: string) =>
+  /^(localhost|0\.0\.0\.0|127\.[\d.]+|\[::1\])(:\d+)?$/.test(host);
+
 export const hostOf = (url: string) => url.replace(/^https?:\/\//, "").split("/")[0];
 
 export const links = {

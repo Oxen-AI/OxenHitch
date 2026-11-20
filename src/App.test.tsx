@@ -16,7 +16,7 @@ describe("first run", () => {
     open();
     expect(await screen.findByRole("heading", { name: "Run Claude on Oxen" })).toBeVisible();
     expect(screen.getByLabelText("Oxen API key")).toBeVisible();
-    expect(screen.queryByLabelText("Gateway address")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Host")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
   });
 
@@ -54,18 +54,19 @@ describe("first run", () => {
     expect(calls).toContain("open:https://www.oxen.ai/settings/profile");
   });
 
-  it("lets a different gateway be used", async () => {
+  it("lets a different host be set, by name alone", async () => {
     const { user, calls } = open();
-    await user.click(await screen.findByRole("button", { name: "Use a different gateway" }));
-    const address = screen.getByLabelText("Gateway address");
-    expect(address).toHaveValue("https://hub.oxen.ai/api/ai");
+    await user.click(await screen.findByRole("button", { name: "Use a different host" }));
+    const host = screen.getByLabelText("Host");
+    expect(host).toHaveValue("hub.oxen.ai");
 
-    await user.clear(address);
-    await user.type(address, "http://localhost:3001/api/ai");
+    await user.clear(host);
+    await user.type(host, "localhost:3001");
     await user.type(screen.getByLabelText("Oxen API key"), "k");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    await waitFor(() => expect(calls).toContain("connect:k:http://localhost:3001/api/ai"));
+    await waitFor(() => expect(calls).toContain("connect:k:localhost:3001"));
+    expect(await screen.findByText("Claude picks up Oxen the next time it opens.")).toBeVisible();
   });
 
   it("points to the Claude download when Claude is not installed", async () => {
@@ -216,6 +217,21 @@ describe("connection settings", () => {
 
     await waitFor(() => expect(calls).toContain("connect:new_key_9876:"));
     expect(await screen.findByText("••••9876")).toBeVisible();
+  });
+
+  it("changes the host without retyping the key", async () => {
+    const { user, calls } = await openConnection();
+    const host = screen.getByLabelText("Host");
+    expect(host).toHaveValue("hub.oxen.ai");
+
+    await user.clear(host);
+    await user.type(host, "localhost:3001");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(calls).toContain("connect::localhost:3001"));
+    // Back home, the new host shows once Claude has been restarted.
+    await user.click(await screen.findByRole("button", { name: "Restart Claude" }));
+    expect(await screen.findByText("localhost:3001")).toBeVisible();
   });
 
   it("sends a test message", async () => {

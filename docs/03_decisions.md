@@ -86,10 +86,23 @@ position that is really inside a menu bar and falls back to the top-right corner
 ## 2026-11-19 — Monochrome UI, color only for state
 
 Black-and-white surfaces with the system font; green, amber and red are reserved for connection
-state. It reads as native on macOS and does not depend on final Oxen brand assets, which are still
-placeholders (`design/`).
+state. It reads as native on macOS and lets the Oxen mark be the only brand element.
 
 ## 2026-11-19 — Sandbox mode for development
 
 `HITCH_CLAUDE_DIR` redirects every write to a scratch directory and simulates restarting Claude, so
 the app can be exercised end to end without changing a developer's real Claude setup.
+
+## 2026-11-19 — Ask for a host, not a URL
+
+The setting is a "Host" field. `hub.oxen.ai` becomes `https://hub.oxen.ai/api/ai`; a host on this
+machine (`localhost`, `127.x`) uses http. A full URL is still accepted for unusual setups, and the
+field shows the full URL only when the host alone would not reproduce it. A non-technical user
+should never have to know the gateway path. Requested by Greg.
+
+## 2026-11-19 — Use the Oxen "x" mark everywhere
+
+The app icon, the in-app mark and the menu-bar glyph all come from Oxen's own logo files, copied
+into `design/oxen-x-black.svg` and `design/oxen-x-white.svg`. `design/icon.svg`, `design/tray.svg`
+and `design/tray-off.svg` are generated from them; the PNG/ICNS files in `src-tauri/icons/` are
+rendered from those. This replaced an invented placeholder glyph. Requested by Greg.

@@ -41,7 +41,7 @@ obvious. It should feel like a first-party Mac utility.
 | Switch back to Anthropic | One toggle returns Claude Desktop to normal Claude.ai sign-in, and back again, without losing the key. |
 | Model picker | Choose which gateway models Claude Desktop shows and which is the default. |
 | Launch at login | Optional. Hitch starts with the Mac and re-checks that Claude is still pointed at Oxen. |
-| Advanced | Edit the gateway base URL (defaults to `https://hub.oxen.ai/api/ai`). |
+| Host | Point Hitch at a different Oxen host. Typing just `hub.oxen.ai` or `localhost:3001` is enough; Hitch adds the scheme and the `/api/ai` path. A full URL also works. Defaults to `hub.oxen.ai`. |
 | Remove | Take Hitch's profile out of Claude and restore what was applied before. |
 
 Not in v1: "Sign in with Oxen" (browser login instead of pasting a key), Windows/Linux builds,
@@ -150,7 +150,6 @@ is writing `"3p"`. The profile and key stay put. This mirrors what Claude does i
 - `https://hub.oxen.ai/api/ai/v1/models` returned 404 on 2026-11-19 and the local dev server at
   `localhost:3001` was failing to compile, so the gateway client is tested against a mock only.
   It needs one real end-to-end run once either is up.
-- Brand assets (Oxen logo, app icon, menu-bar glyph) are placeholders.
 - Distribution: Developer ID signing, notarization, DMG, auto-update.
 - "Sign in with Oxen" needs an OAuth or device-login endpoint on the hub.
 
