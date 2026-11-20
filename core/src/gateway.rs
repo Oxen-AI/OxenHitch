@@ -66,6 +66,15 @@ pub async fn check(base_url: &str, api_key: &str) -> Check {
     if status.as_u16() == 401 || status.as_u16() == 403 {
         return Check::InvalidKey;
     }
+    if status.as_u16() == 404 {
+        // The server is there but has no model list at this path: almost always a wrong address.
+        return Check::Failed {
+            message: format!(
+                "{} is reachable, but there is no Oxen gateway at this address. Check the gateway address.",
+                host(base_url)
+            ),
+        };
+    }
     if !status.is_success() {
         return Check::Failed {
             message: format!("The gateway answered with an error ({}).", status.as_u16()),
@@ -125,17 +134,21 @@ fn client() -> reqwest::Client {
 }
 
 fn unreachable(base_url: &str, err: &reqwest::Error) -> Check {
-    let host = base_url
-        .split("://")
-        .nth(1)
-        .and_then(|rest| rest.split('/').next())
-        .unwrap_or(base_url);
+    let host = host(base_url);
     let message = if err.is_timeout() {
         format!("{host} took too long to answer.")
     } else {
         format!("Could not reach {host}. Check your internet connection.")
     };
     Check::Unreachable { message }
+}
+
+fn host(base_url: &str) -> &str {
+    base_url
+        .split("://")
+        .nth(1)
+        .and_then(|rest| rest.split('/').next())
+        .unwrap_or(base_url)
 }
 
 /// Accepts the Anthropic shape (`data[].id`, `display_name`) and plain OpenAI-style lists.
@@ -230,7 +243,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        assert!(matches!(check(&server.uri(), "k").await, Check::Failed { .. }));
+        let Check::Failed { message } = check(&server.uri(), "k").await else {
+            panic!("a 404 is a failure, not a bad key");
+        };
+        assert!(message.ends_with(
+            "is reachable, but there is no Oxen gateway at this address. Check the gateway address."
+        ));
     }
 
     #[tokio::test]

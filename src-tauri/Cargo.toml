@@ -1,0 +1,20 @@
+[package]
+name = "oxen-hitch"
+version = "0.1.0"
+edition = "2021"
+description = "Run Claude Desktop on the Oxen.ai gateway."
+
+[lib]
+name = "oxen_hitch_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+hitch-core = { path = "../core" }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

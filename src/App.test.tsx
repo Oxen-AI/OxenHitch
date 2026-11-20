@@ -1,0 +1,236 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+
+import App from "./App";
+import { connectedStatus, createFakeApi, type FakeOptions } from "./lib/fake";
+
+function open(options: FakeOptions = {}) {
+  const fake = createFakeApi(options);
+  render(<App api={fake.api} />);
+  return { ...fake, user: userEvent.setup() };
+}
+
+describe("first run", () => {
+  it("asks for an API key and nothing else", async () => {
+    open();
+    expect(await screen.findByRole("heading", { name: "Run Claude on Oxen" })).toBeVisible();
+    expect(screen.getByLabelText("Oxen API key")).toBeVisible();
+    expect(screen.queryByLabelText("Gateway address")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+  });
+
+  it("connects with a pasted key and then asks to restart Claude", async () => {
+    const { user, calls } = open();
+    await user.type(await screen.findByLabelText("Oxen API key"), "oxen_key_1234");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByRole("heading", { name: "Restart Claude to finish" })).toBeVisible();
+    expect(calls).toContain("connect:oxen_key_1234:");
+
+    await user.click(screen.getByRole("button", { name: "Restart Claude" }));
+    expect(await screen.findByRole("heading", { name: "Claude is running on Oxen" })).toBeVisible();
+    expect(calls).toContain("restartClaude");
+  });
+
+  it("connects when Enter is pressed in the key field", async () => {
+    const { user, calls } = open();
+    await user.type(await screen.findByLabelText("Oxen API key"), "k{Enter}");
+    await waitFor(() => expect(calls).toContain("connect:k:"));
+  });
+
+  it("explains a rejected key and stays put", async () => {
+    const { user } = open();
+    await user.type(await screen.findByLabelText("Oxen API key"), "bad");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Oxen didn't accept that key");
+    expect(screen.getByRole("heading", { name: "Run Claude on Oxen" })).toBeVisible();
+  });
+
+  it("opens the page where keys are made", async () => {
+    const { user, calls } = open();
+    await user.click(await screen.findByRole("button", { name: /Get an API key/ }));
+    expect(calls).toContain("open:https://www.oxen.ai/settings/profile");
+  });
+
+  it("lets a different gateway be used", async () => {
+    const { user, calls } = open();
+    await user.click(await screen.findByRole("button", { name: "Use a different gateway" }));
+    const address = screen.getByLabelText("Gateway address");
+    expect(address).toHaveValue("https://hub.oxen.ai/api/ai");
+
+    await user.clear(address);
+    await user.type(address, "http://localhost:3001/api/ai");
+    await user.type(screen.getByLabelText("Oxen API key"), "k");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+
+    await waitFor(() => expect(calls).toContain("connect:k:http://localhost:3001/api/ai"));
+  });
+
+  it("points to the Claude download when Claude is not installed", async () => {
+    const { user, calls } = open({ status: { claudeInstalled: false, claudeRunning: false } });
+    expect(await screen.findByRole("heading", { name: "Install Claude first" })).toBeVisible();
+    expect(screen.queryByLabelText("Oxen API key")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Download Claude" }));
+    expect(calls).toContain("open:https://claude.com/download");
+  });
+});
+
+describe("once connected", () => {
+  it("shows that Claude is on Oxen and that the gateway is online", async () => {
+    open({ status: connectedStatus });
+    expect(await screen.findByRole("heading", { name: "Claude is running on Oxen" })).toBeVisible();
+    expect(await screen.findByText("Online · 4 models")).toBeVisible();
+    expect(screen.getByText("••••1234")).toBeVisible();
+  });
+
+  it("offers to open Claude when it is not running", async () => {
+    const { user, calls } = open({ status: { ...connectedStatus, claudeRunning: false } });
+    expect(await screen.findByRole("heading", { name: "Claude is set to use Oxen" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Open Claude" }));
+    expect(calls).toContain("restartClaude");
+  });
+
+  it("switches back to Anthropic and on again", async () => {
+    const { user, calls } = open({ status: { ...connectedStatus, claudeRunning: false } });
+    const toggle = await screen.findByRole("switch", { name: "Run Claude on Oxen" });
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+    expect(await screen.findByRole("heading", { name: "Claude is using Anthropic" })).toBeVisible();
+    expect(calls).toContain("setRouting:false");
+
+    await user.click(screen.getByRole("switch", { name: "Run Claude on Oxen" }));
+    expect(await screen.findByRole("heading", { name: "Claude is set to use Oxen" })).toBeVisible();
+  });
+
+  it("says so when the key stops working", async () => {
+    open({ status: connectedStatus, check: { state: "invalid_key" } });
+    expect(await screen.findByText("Key not accepted")).toBeVisible();
+  });
+
+  it("says so when the gateway cannot be reached", async () => {
+    open({
+      status: connectedStatus,
+      check: { state: "unreachable", message: "Could not reach hub.oxen.ai." },
+    });
+    expect(await screen.findByText("Can't reach hub.oxen.ai")).toBeVisible();
+  });
+
+  it("offers to reconnect when Claude's setup was changed elsewhere", async () => {
+    const { user, calls } = open({ status: { ...connectedStatus, link: "drifted" } });
+    expect(await screen.findByRole("heading", { name: "Claude's setup changed" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Reconnect" }));
+    await waitFor(() => expect(calls).toContain("setRouting:true"));
+  });
+
+  it("warns when an organization manages Claude's settings", async () => {
+    open({ status: { ...connectedStatus, managed: true } });
+    expect(await screen.findByText(/Your organization manages Claude/)).toBeVisible();
+  });
+
+  it("turns on opening at login", async () => {
+    const { user, calls } = open({ status: connectedStatus });
+    const toggle = await screen.findByRole("switch", { name: "Open at login" });
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(calls).toContain("setAutostart:true");
+  });
+
+  it("follows changes made outside the window", async () => {
+    const { update } = open({ status: connectedStatus });
+    await screen.findByRole("heading", { name: "Claude is running on Oxen" });
+    update({ link: "paused" });
+    expect(await screen.findByRole("heading", { name: "Claude is using Anthropic" })).toBeVisible();
+  });
+});
+
+describe("choosing models", () => {
+  async function openModels(options: FakeOptions = { status: connectedStatus }) {
+    const view = open(options);
+    await view.user.click(await screen.findByRole("button", { name: /^Models/ }));
+    await screen.findByRole("heading", { name: "Models" });
+    return view;
+  }
+
+  it("starts on automatic", async () => {
+    await openModels();
+    expect(screen.getByRole("radio", { name: /Automatic/ })).toBeChecked();
+  });
+
+  it("saves the chosen models with the first pick as the default", async () => {
+    const { user, calls } = await openModels();
+    await user.click(screen.getByRole("checkbox", { name: /Claude Sonnet 5.5/ }));
+    await user.click(screen.getByRole("checkbox", { name: /llama-4-maverick/ }));
+    expect(within(screen.getByTestId("model-claude-sonnet-5-5")).getByText("Default")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(calls).toContain("setModels:claude-sonnet-5-5,llama-4-maverick"));
+    expect(await screen.findByText("Claude Sonnet 5.5 + 1")).toBeVisible();
+  });
+
+  it("lets another chosen model become the default", async () => {
+    const { user, calls } = await openModels({
+      status: { ...connectedStatus, models: ["claude-opus-5-5", "claude-haiku-5-5"] },
+    });
+    await user.click(screen.getByRole("button", { name: "Make Claude Haiku 5.5 the default" }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(calls).toContain("setModels:claude-haiku-5-5,claude-opus-5-5"));
+  });
+
+  it("goes back to automatic", async () => {
+    const { user, calls } = await openModels({
+      status: { ...connectedStatus, models: ["claude-opus-5-5"] },
+    });
+    await user.click(screen.getByRole("radio", { name: /Automatic/ }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(calls).toContain("setModels:"));
+  });
+
+  it("does not save when nothing changed", async () => {
+    const { user, calls } = await openModels();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    await screen.findByRole("heading", { name: /Claude is/ });
+    expect(calls.some((call) => call.startsWith("setModels"))).toBe(false);
+  });
+});
+
+describe("connection settings", () => {
+  async function openConnection() {
+    const view = open({ status: connectedStatus });
+    await view.user.click(await screen.findByRole("button", { name: /^API key/ }));
+    await screen.findByRole("heading", { name: "Connection" });
+    return view;
+  }
+
+  it("replaces the key", async () => {
+    const { user, calls } = await openConnection();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Oxen API key"), "new_key_9876");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(calls).toContain("connect:new_key_9876:"));
+    expect(await screen.findByText("••••9876")).toBeVisible();
+  });
+
+  it("sends a test message", async () => {
+    const { user } = await openConnection();
+    await user.click(screen.getByRole("button", { name: "Send a test message" }));
+    expect(await screen.findByText("claude-opus-5-5 answered")).toBeVisible();
+  });
+
+  it("removes Oxen from Claude only after confirming", async () => {
+    const { user, calls } = await openConnection();
+    await user.click(screen.getByRole("button", { name: "Remove Oxen from Claude…" }));
+    expect(calls).not.toContain("remove");
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    expect(await screen.findByRole("heading", { name: "Run Claude on Oxen" })).toBeVisible();
+    expect(calls).toContain("remove");
+  });
+});

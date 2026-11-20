@@ -64,3 +64,32 @@ purpose. Hitch shows that Claude is no longer using Oxen and offers Reconnect.
 
 Managed preferences override local config. Without detection Hitch would look connected while
 Claude ignores it.
+
+## 2026-11-19 — Logic in a separate `hitch-core` crate
+
+All file, network, keychain and process logic lives in `core/`, with no Tauri dependency. It
+compiles and tests in seconds, and every function takes its directories as arguments so tests run
+against temp folders. The Tauri crate is a thin shell.
+
+## 2026-11-19 — Validate the key against the gateway before writing anything
+
+Connect calls `GET {baseUrl}/v1/models` first. A mistyped key or wrong address is caught in Hitch,
+with a plain-language message, instead of surfacing later as a confusing failure inside Claude.
+
+## 2026-11-19 — The popover sizes itself and places itself
+
+The window is exactly as tall as its content (the UI reports its height). We compute its position
+from the tray icon's rectangle ourselves rather than using the positioner plugin. On first launch
+macOS reports a placeholder icon position until the menu bar is laid out, so Hitch waits for a
+position that is really inside a menu bar and falls back to the top-right corner.
+
+## 2026-11-19 — Monochrome UI, color only for state
+
+Black-and-white surfaces with the system font; green, amber and red are reserved for connection
+state. It reads as native on macOS and does not depend on final Oxen brand assets, which are still
+placeholders (`design/`).
+
+## 2026-11-19 — Sandbox mode for development
+
+`HITCH_CLAUDE_DIR` redirects every write to a scratch directory and simulates restarting Claude, so
+the app can be exercised end to end without changing a developer's real Claude setup.
