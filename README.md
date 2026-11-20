@@ -13,9 +13,6 @@ your Oxen API key, click Connect, restart Claude. No developer mode, no config f
 Hitch runs on Apple Silicon and Intel Macs with macOS 12 or later, and needs the
 [Claude desktop app](https://claude.com/download).
 
-From v0.1.1 on, releases are signed and notarized with Apple, so Hitch opens like any other Mac
-app. (v0.1.0 was not: it needs `xattr -cr /Applications/Hitch.app` run once before it will open.)
-
 ## Set up
 
 ### 1. Paste your Oxen API key
