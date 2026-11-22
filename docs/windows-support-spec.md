@@ -106,7 +106,7 @@ Each stage is independently testable; later stages cannot be accepted while an e
 
 - Test path discovery with missing environment variables, explicit sandbox override, stable launcher present/absent, and multiple versioned app directories.
 - Test provider-generic key labels/errors, `/v1` URL normalization, manual model aliases, and rejection of cross-host credential reuse.
-- Test manual endpoint Save performs no network calls. Test LiteLLM discovery, aliases, and auth with a simulated catalog and Windows package against the local LiteLLM service.
+- Test manual endpoint Save performs no network calls. Test LiteLLM discovery, aliases, and auth with a simulated catalog and Windows package against the local LiteLLM service. After the Qwen3-VL deployments are loaded, verify both are advertised as vision-capable, `party-oracle-vision` accepts an image request, and `party-oracle` retains its existing target.
 - Test registry policy with no policy, user inference policy, machine inference policy, app-behavior-only policy and machine/user conflict.
 - Test executable identity against the stable launcher, versioned Claude main process, helper executable, and unrelated `claude.exe` CLI.
 - Test restart outcomes without terminating a real process: running and not running, quit refusal, delayed open, and unsupported graceful quit.
@@ -153,6 +153,21 @@ Each stage is independently testable; later stages cannot be accepted while an e
 - L2 Claude's picker and the local model catalog MUST retain LiteLLM's display name or fall back to the original LiteLLM ID. On reopening Hitch, older profiles with aliases shown as labels are corrected from the cached catalog without changing IDs, order or active profile selection.
 - L3 WHEN Claude uses the alias gateway, Hitch MUST authenticate the local request, accept only known aliases, and forward Messages and token count requests to the chosen upstream. LiteLLM handles protocol conversion.
 - CLOSED: A picker label can't change the model on the wire. Updating LiteLLM's configuration would require management access and alter the shared proxy.
+
+#### Windows LiteLLM vision routes
+
+| Stage | Mechanism | Tag | Ref |
+| --- | --- | --- | --- |
+| DECLARE | Add explicit LiteLLM deployments for the installed Ollama Qwen3-VL 2B and 4B models | [mandatory] | V1 |
+| ADVERTISE | Mark both deployments vision-capable and cap advertised input context at 131072 tokens | [mandatory] | V1 |
+| SELECT | Keep `party-oracle` unchanged and expose `party-oracle-vision` as a separate 4B route | [mandatory] | V2 |
+| DISCOVER | Let Hitch discover the configured route names from LiteLLM `/v1/models` | [mandatory] | V3 |
+
+- V1 The sample LiteLLM routes MUST target the exact locally installed Ollama model tags and use Ollama's OpenAI-compatible `/v1` endpoint.
+- V1 Each Qwen3-VL route MUST declare `model_info.supports_vision: true` and `model_info.max_input_tokens: 131072`.
+- V2 `party-oracle-vision` MUST target the 4B vision deployment. Adding vision routes MUST NOT change the existing `party-oracle` target.
+- V3 After LiteLLM reloads the config, Hitch model refresh MUST discover the route names; the selected Claude model MUST send image content through LiteLLM to the vision deployment.
+- CLOSED: Automatic fallback from a text-only role to a vision model is not part of this contract; callers select a vision route explicitly.
 
 - The host and credential are provider-neutral; the user supplies the API key expected by the configured provider, not an Oxen-specific key.
 - Manual custom endpoint Save uses the exact IDs the user supplied and reports `configured, untested`. An absent provider key is valid in either custom mode.

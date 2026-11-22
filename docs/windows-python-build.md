@@ -6,6 +6,46 @@ Claude Desktop 6.28899.6 showed all 17 original LiteLLM names in the expanded pi
 
 To use LiteLLM, choose **Use a different endpoint**, keep `http://127.0.0.1:4000`, and click **Save endpoint** with model names blank. Claude's picker shows the original LiteLLM display names. Hitch uses stable `claude-model-<hash>` IDs for routing and repairs the labels in earlier Hitch profiles on startup. Hitch stays in the Windows notification area to route those aliases while Claude is open. Quit stops the relay. Use **Models → Refresh models** when LiteLLM's catalog changes.
 
+### Add the local Qwen3-VL models to LiteLLM
+
+The Qwen3-VL 2B and 4B GGUF models are served by Ollama at `http://127.0.0.1:11434/v1`. Add these deployments to the existing LiteLLM `model_list`; keep any other model and role entries already in that file:
+
+```yaml
+model_list:
+  - model_name: qwen3-vl-2b
+    litellm_params:
+      model: openai/hf.co/Qwen/Qwen3-VL-2B-Instruct-GGUF:Q4_K_M
+      api_base: http://127.0.0.1:11434/v1
+      api_key: ollama
+    model_info:
+      supports_vision: true
+      max_input_tokens: 131072
+
+  - model_name: qwen3-vl-4b
+    litellm_params:
+      model: openai/hf.co/Qwen/Qwen3-VL-4B-Instruct-GGUF:Q4_K_M
+      api_base: http://127.0.0.1:11434/v1
+      api_key: ollama
+    model_info:
+      supports_vision: true
+      max_input_tokens: 131072
+
+  - model_name: party-oracle-vision
+    litellm_params:
+      model: openai/hf.co/Qwen/Qwen3-VL-4B-Instruct-GGUF:Q4_K_M
+      api_base: http://127.0.0.1:11434/v1
+      api_key: ollama
+    model_info:
+      supports_vision: true
+      max_input_tokens: 131072
+```
+
+`api_key: ollama` is a placeholder for an unauthenticated local Ollama server; use the credential configured on your Ollama host if it requires authentication. Do not replace the existing `party-oracle` route: `party-oracle-vision` is an explicit 4B vision-capable role.
+
+After editing the config, restart LiteLLM so it loads the routes. Verify that `GET http://127.0.0.1:4000/v1/models` lists all three names, then click **Models → Refresh models** in Hitch. In Claude Code, select **party-oracle-vision** when sending images; Hitch keeps its stable Claude wire alias and routes it back to this LiteLLM name. `party-oracle` remains the existing text reasoning route.
+
+The installed Ollama tags report vision capability and a 262144-token native context. LiteLLM advertises a 131072-token input limit here. Direct Ollama image probes produced usable answers from both models; end-to-end image routing through the Windows LiteLLM service remains pending until its service reloads and the `/v1/models` and image request checks pass.
+
 ### Claude Code in Claude Desktop on Windows
 
 Claude Desktop launches its Code mode as a bundled Claude Code process. That process uses Hitch's hashed wire model alias, so it must reach Hitch's loopback relay rather than LiteLLM port 4000 directly. For this machine, the active relay is `http://127.0.0.1:52338`; Hitch's profile key is the local relay token. `ANTHROPIC_API_KEY` must contain that exact local token when present; an upstream provider key is rejected by the relay. Hitch checks `x-api-key` before bearer authorization.
