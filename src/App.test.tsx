@@ -20,6 +20,28 @@ describe("first run", () => {
     expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
   });
 
+  it("saves a custom endpoint and model without contacting it", async () => {
+    const { user, calls } = open();
+    await user.click(await screen.findByRole("button", { name: "Use a different endpoint" }));
+    await user.clear(screen.getByLabelText("Endpoint URL"));
+    await user.type(screen.getByLabelText("Endpoint URL"), "https://api.example.com/v1");
+    await user.type(screen.getByLabelText("Model names (optional)"), "gpt-test");
+    await user.click(screen.getByRole("button", { name: "Save endpoint" }));
+    await waitFor(() => expect(calls.some((call) => call.startsWith("connect:"))).toBe(true));
+    expect(calls).not.toContain("check");
+  });
+
+  it("discovers LiteLLM models with the URL alone", async () => {
+    const { user, calls } = open();
+    await user.click(await screen.findByRole("button", { name: "Use a different endpoint" }));
+    expect(screen.getByLabelText("Endpoint URL")).toHaveValue("http://127.0.0.1:4000");
+    await user.click(screen.getByRole("button", { name: "Save endpoint" }));
+    expect(await screen.findByText("4 models found")).toBeVisible();
+    window.dispatchEvent(new Event("focus"));
+    expect(calls).toContain("connect::http://127.0.0.1:4000");
+    expect(calls).not.toContain("check");
+  });
+
   it("connects with a pasted key and then asks to restart Claude", async () => {
     const { user, calls } = open();
     await user.type(await screen.findByLabelText("Oxen API key"), "oxen_key_1234");
@@ -48,15 +70,16 @@ describe("first run", () => {
 
   it("looks for a saved key again when the host changes", async () => {
     const { user } = open({ savedKeys: { "localhost:3001": "4321" } });
-    await user.click(await screen.findByRole("button", { name: "Use a different host" }));
+    await user.click(await screen.findByRole("button", { name: "Use a different endpoint" }));
     expect(screen.queryByText(/Found your Oxen key/)).not.toBeInTheDocument();
 
-    const host = screen.getByLabelText("Host");
+    const host = screen.getByLabelText("Endpoint URL");
     await user.clear(host);
     await user.type(host, "localhost:3001");
 
-    expect(await screen.findByText(/Found your Oxen key ending in 4321/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+    expect(await screen.findByText(/Found your provider key ending in 4321/)).toBeVisible();
+    await user.type(screen.getByLabelText("Model names (optional)"), "gpt-test");
+    expect(screen.getByRole("button", { name: "Save endpoint" })).toBeEnabled();
   });
 
   it("says where to find Hitch again once it is set up, until dismissed", async () => {
@@ -98,17 +121,18 @@ describe("first run", () => {
 
   it("lets a different host be set, by name alone", async () => {
     const { user, calls } = open();
-    await user.click(await screen.findByRole("button", { name: "Use a different host" }));
-    const host = screen.getByLabelText("Host");
-    expect(host).toHaveValue("hub.oxen.ai");
+    await user.click(await screen.findByRole("button", { name: "Use a different endpoint" }));
+    const host = screen.getByLabelText("Endpoint URL");
+    expect(host).toHaveValue("http://127.0.0.1:4000");
 
     await user.clear(host);
     await user.type(host, "localhost:3001");
-    await user.type(screen.getByLabelText("Oxen API key"), "k");
-    await user.click(screen.getByRole("button", { name: "Connect" }));
+    await user.type(screen.getByLabelText("API key (optional)"), "k");
+    await user.type(screen.getByLabelText("Model names (optional)"), "gpt-test");
+    await user.click(screen.getByRole("button", { name: "Save endpoint" }));
 
     await waitFor(() => expect(calls).toContain("connect:k:localhost:3001"));
-    expect(await screen.findByText("Claude picks up Oxen the next time it opens.")).toBeVisible();
+    expect(await screen.findByText(/Save completed without contacting it/)).toBeVisible();
   });
 
   it("points to the Claude download when Claude is not installed", async () => {

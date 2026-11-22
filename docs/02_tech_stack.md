@@ -1,16 +1,26 @@
 # Tech Stack
 
-_Last updated: 2026-11-19_
+_Last updated: 2026-11-21_
+
+## Platform implementation status
+
+| Platform | Shell and core | Status |
+|---|---|---|
+| macOS | Tauri 2 + Rust core + React UI | Existing implementation and release path. |
+| Windows | Python 3.12 + pywebview + pystray + React UI | New implementation in `hitch/`; packaged with PyInstaller one-folder. |
+
+Windows uses the React UI in `src/` and a Python bridge/backend in `hitch/`.
+Rust/Tauri remains the macOS shell and the source reference for shared behavior; the Windows build does not invoke Cargo or Tauri.
 
 ## Summary
 
 | Layer | Choice | Why |
 |---|---|---|
-| App shell | **Tauri 2** | One codebase for macOS, Windows and Linux; ~10 MB app; native tray, autostart and windowing. Electron is ~150 MB for a menu-bar utility. Native Swift would be macOS-only and mean a rewrite per OS. |
-| Core logic | **Rust** | All file, key, process and network work. Matches Oxen's Rust codebase. Easy to unit test against a temp directory. |
+| App shell | **Tauri 2 on macOS; pywebview + pystray on Windows** | Native shell per platform with the shared React UI. |
+| Core logic | **Rust on macOS; Python on Windows** | Platform-specific filesystem, key, process and network work. |
 | UI | **React 19 + TypeScript + Vite** | Small popover UI; fast iteration; widely known. |
 | Styling | **Plain CSS with design tokens** | Pixel-level control for a native feel, system font, light/dark. No component library to fight. |
-| Rust tests | `cargo test`, `tempfile`, `wiremock` | Config logic runs against temp dirs; the gateway client runs against a mock HTTP server. |
+| Core tests | `cargo test` on macOS; `python -m pytest` on Windows | Config logic runs against temp dirs; gateway clients run against mock HTTP responses. |
 | UI tests | **Vitest + Testing Library** | Renders each screen state against a fake backend. |
 | Package manager | **pnpm** | Already used here. |
 

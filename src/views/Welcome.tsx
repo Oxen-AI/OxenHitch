@@ -1,3 +1,7 @@
+/** Save the provider settings and discover LiteLLM models when the list is blank.
+ * DISCOVER [L1]: blank optional model IDs request the catalog on Save.
+ * APPLY [L2]: apply the returned Claude alias profile.
+ */
 import { useState } from "react";
 
 import { hostLabel, links, type Api, type Status } from "../lib/api";
@@ -10,20 +14,24 @@ import { RestartPrompt } from "./Home";
 export function Welcome({ api, status }: { api: Api; status: Status }) {
   const [key, setKey] = useState("");
   const currentHost = hostLabel(status.baseUrl);
-  const [host, setHost] = useState(currentHost);
+  const [host, setHost] = useState("http://127.0.0.1:4000");
   const [custom, setCustom] = useState(false);
+  const [modelText, setModelText] = useState("");
 
   // A key the Oxen CLI (or an earlier Hitch) saved for this host means nothing to paste.
   const lookupHost = custom ? host.trim() : currentHost;
   const saved = useSavedKey(api, lookupHost);
+  const modelIds = modelText.split(/[\n,]/).map((value) => value.trim()).filter(Boolean);
 
   const connect = useAction(() =>
     api.connect({
       apiKey: key,
-      baseUrl: custom && host.trim() !== currentHost ? host.trim() : undefined,
+      baseUrl: custom ? host.trim() : undefined,
+      customEndpoint: custom,
+      modelIds: custom ? modelIds : undefined,
     }),
   );
-  const ready = (key.trim() !== "" || saved !== null) && !connect.busy;
+  const ready = (custom ? Boolean(host.trim()) : key.trim() !== "" || saved !== null) && !connect.busy;
   const submit = () => {
     if (ready) void connect.run();
   };
@@ -33,17 +41,19 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
       <div className="app-tile">
         <OxenMark size={28} />
       </div>
-      <h1>Run Claude on Oxen</h1>
+      <h1>{custom ? "Use your endpoint" : "Run Claude on Oxen"}</h1>
       <p className="lede">
-        {saved
+        {custom
+          ? "Hitch can find the models on your LiteLLM endpoint."
+          : saved
           ? "Hitch sets up Claude Desktop for you. Your Oxen key is already on this Mac."
           : "Paste your Oxen API key and Hitch sets up Claude Desktop for you."}
       </p>
 
       <div className="stack">
         <Field
-          label="Oxen API key"
-          placeholder={saved ? "Paste a different key (optional)" : "Oxen API key"}
+          label={custom ? "API key (optional)" : "Oxen API key"}
+          placeholder={custom ? "Provider API key (optional)" : saved ? "Paste a different key (optional)" : "Oxen API key"}
           value={key}
           secret
           autoFocus
@@ -55,9 +65,9 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
         />
         {custom && (
           <Field
-            label="Host"
+            label="Endpoint URL"
             showLabel
-            placeholder="hub.oxen.ai"
+            placeholder="http://127.0.0.1:4000"
             value={host}
             onChange={(value) => {
               setHost(value);
@@ -66,30 +76,47 @@ export function Welcome({ api, status }: { api: Api; status: Status }) {
             onEnter={submit}
           />
         )}
+        {custom && (
+          <Field
+            label="Model names (optional)"
+            showLabel
+            placeholder="Leave blank to discover LiteLLM models"
+            value={modelText}
+            onChange={setModelText}
+            onEnter={submit}
+          />
+        )}
         {saved && key.trim() === "" && (
           <Notice tone="info">
-            {`Found your Oxen key ending in ${saved} for ${lookupHost}.`}
+            {`Found your ${custom ? "provider" : "Oxen"} key ending in ${saved} for ${lookupHost}.`}
           </Notice>
         )}
         {connect.error && <Notice>{connect.error}</Notice>}
         <button type="button" className="button primary" disabled={!ready} onClick={submit}>
           {connect.busy ? (
             <>
-              <Spinner /> Checking key…
+              <Spinner /> {custom ? (modelIds.length ? "Saving…" : "Finding models…") : "Checking key…"}
             </>
           ) : (
-            "Connect"
+            custom ? "Save endpoint" : "Connect"
           )}
         </button>
       </div>
 
       <div className="welcome-links">
-        <button type="button" className="text-link" onClick={() => void api.open(links.apiKeys)}>
-          Get an API key <Arrow />
-        </button>
         {!custom && (
-          <button type="button" className="text-link quiet" onClick={() => setCustom(true)}>
-            Use a different host
+          <>
+            <button type="button" className="text-link" onClick={() => void api.open(links.apiKeys)}>
+              Get an API key <Arrow />
+            </button>
+            <button type="button" className="text-link quiet" onClick={() => { setKey(""); setCustom(true); }}>
+              Use a different endpoint
+            </button>
+          </>
+        )}
+        {custom && (
+          <button type="button" className="text-link quiet" onClick={() => { setKey(""); setCustom(false); }}>
+            Use Oxen
           </button>
         )}
       </div>

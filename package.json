@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:windows": "tsc --noEmit && vite build --base=./ --minify false",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rust": "cargo test -p hitch-core",

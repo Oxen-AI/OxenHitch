@@ -1,5 +1,9 @@
 # Decisions
 
+## 2026-11-22 — Windows Python host and custom LiteLLM endpoints
+
+Windows support uses the Python/pywebview host with the shared React interface. Claude Code can route through Hitch to an operator-configured LiteLLM endpoint using discovered model IDs and locally stored credentials; Oxen remains an available provider. The Windows setup and acceptance evidence live in `docs/windows-python-build.md` and `docs/windows-support-spec.md`.
+
 Append new decisions at the bottom with a date. Say what was decided and why.
 
 ## 2026-11-19 — Tauri 2 over Swift and Electron

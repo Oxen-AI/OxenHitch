@@ -11,6 +11,16 @@ type Tone = "on" | "pending" | "off" | "trouble";
 
 /** The one sentence that says where things stand, and the one thing to do about it. */
 function headline(status: Status, gateway: Gateway): { tone: Tone; title: string; detail: string } {
+  if (status.modelCatalog) {
+    if (status.relayError) return { tone: "trouble", title: "Hitch gateway is unavailable", detail: status.relayError };
+    if (status.link === "paused") return { tone: "off", title: "LiteLLM is paused", detail: "Claude is set to use Anthropic." };
+    if (status.link === "drifted") return { tone: "off", title: "Claude's setup changed", detail: "Reconnect to use LiteLLM again." };
+    if (status.needsRestart) return { tone: "pending", title: "Restart Claude to finish", detail: "Keep Hitch running in the notification area while Claude uses LiteLLM." };
+    return { tone: "on", title: "Claude is set to use LiteLLM", detail: "Keep Hitch running in the notification area while you use Claude." };
+  }
+  if (status.customEndpoint && gateway.state === "untested") {
+    return { tone: "on", title: "Claude is set to use your endpoint", detail: "Save completed without contacting it. Test the endpoint when you're ready." };
+  }
   if (status.link === "drifted") {
     return {
       tone: "off",
@@ -119,7 +129,7 @@ export function Home(props: {
 
       <div className="group">
         <div className="row">
-          <span className="row-label">Run Claude on Oxen</span>
+          <span className="row-label">{status.customEndpoint ? "Run Claude on endpoint" : "Run Claude on Oxen"}</span>
           <Switch
             label="Run Claude on Oxen"
             checked={on}
@@ -134,7 +144,12 @@ export function Home(props: {
             {status.claudeRunning ? "Running" : "Not running"}
           </span>
         </div>
-        <GatewayRow gateway={gateway} host={hostOf(status.baseUrl)} onRetry={props.onRetry} />
+        {status.modelCatalog && gateway.state === "untested" ? (
+          <div className="row">
+            <span className="row-label">Gateway</span>
+            <span className="row-value">{status.modelCatalog.length} models found</span>
+          </div>
+        ) : <GatewayRow gateway={gateway} host={hostOf(status.baseUrl)} onRetry={props.onRetry} />}
         <button type="button" className="row row-link" onClick={() => props.onOpen("models")}>
           <span className="row-label">Models</span>
           <span className="row-value">{modelSummary(status, gateway)}</span>
@@ -247,6 +262,8 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
     switch (gateway.state) {
       case "checking":
         return { dot: "idle", text: "Checking…" };
+      case "untested":
+        return { dot: "warn", text: "Configured, untested" };
       case "ok": {
         const count = gateway.models.length;
         return { dot: "good", text: `Online · ${count} ${count === 1 ? "model" : "models"}` };
@@ -261,7 +278,7 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
         return { dot: "warn", text: "Not responding" };
     }
   })();
-  const failed = gateway.state !== "ok" && gateway.state !== "checking" && gateway.state !== "no_key";
+  const failed = gateway.state === "untested" || gateway.state === "invalid_key" || gateway.state === "unreachable" || gateway.state === "failed";
 
   return (
     <>
@@ -273,7 +290,7 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
         </span>
         {failed && (
           <button type="button" className="text-link" onClick={onRetry}>
-            Retry
+            {gateway.state === "untested" ? "Test endpoint" : "Retry"}
           </button>
         )}
       </div>
@@ -287,13 +304,17 @@ function GatewayRow({ gateway, host, onRetry }: { gateway: Gateway; host: string
         <p className="row-help">Check your internet connection. Claude can't answer until this is back.</p>
       )}
       {gateway.state === "failed" && <p className="row-help">{gateway.message}</p>}
+      {gateway.state === "untested" && <p className="row-help">Save did not contact this endpoint. Testing sends a request to its model-list endpoint.</p>}
     </>
   );
 }
 
 function modelSummary(status: Status, gateway: Gateway) {
   const [first, ...rest] = status.models;
-  if (!first) return gateway.state === "ok" ? `All ${gateway.models.length}` : "All";
+  if (!first) {
+    const count = gateway.state === "ok" ? gateway.models.length : status.modelCatalog?.length;
+    return count === undefined ? "All" : `All ${count}`;
+  }
   const known = gateway.state === "ok" ? gateway.models.find((model) => model.id === first) : undefined;
   const name = known?.name ?? first;
   return rest.length ? `${name} + ${rest.length}` : name;
