@@ -9,7 +9,7 @@ import { NoClaude, Welcome } from "./views/Welcome";
 export type View = "home" | "models" | "connection";
 
 /** What we know about the gateway: still asking, no key to ask with, or the answer. */
-export type Gateway = { state: "checking" } | { state: "no_key" } | Check;
+export type Gateway = { state: "checking" } | { state: "no_key" } | { state: "untested" } | Check;
 
 export default function App({ api, initialView = "home" }: { api: Api; initialView?: View }) {
   const [status, setStatus] = useState<Status | null>(null);
@@ -49,10 +49,14 @@ export default function App({ api, initialView = "home" }: { api: Api; initialVi
   // Check when set up, when the key or address changes, and each time the popover opens.
   useEffect(() => {
     if (!configured) return;
+    if (status?.customEndpoint) {
+      setGateway({ state: "untested" });
+      return;
+    }
     void checkGateway();
     window.addEventListener("focus", checkGateway);
     return () => window.removeEventListener("focus", checkGateway);
-  }, [configured, baseUrl, keyHint, checkGateway]);
+  }, [configured, baseUrl, keyHint, checkGateway, status?.customEndpoint]);
 
   // Once Hitch is no longer set up (after Remove), sub-screens have nothing to show.
   useEffect(() => {

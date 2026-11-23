@@ -76,16 +76,19 @@ export function createFakeApi(options: FakeOptions = {}) {
       if (options.checkUpdatesClaude && status.link === "connected") update({ needsRestart: true });
       return check;
     },
-    async connect({ apiKey, baseUrl }) {
+    async connect({ apiKey, baseUrl, customEndpoint, modelIds }) {
       await record(`connect:${apiKey ?? ""}:${baseUrl ?? ""}`);
       const key = apiKey?.trim();
       const saved = savedKeys[hostOf(baseUrl?.trim() ? toBaseUrl(baseUrl) : status.baseUrl)];
-      if (!key && !status.keyHint && !saved) throw "Paste your Oxen API key to connect.";
-      if (key === "bad") throw "Oxen didn't accept that key. Check it and try again.";
+      if (!customEndpoint && !key && !status.keyHint && !saved) throw "Paste your Oxen API key to connect.";
+      if (!customEndpoint && key === "bad") throw "Oxen didn't accept that key. Check it and try again.";
       return update({
         link: "connected",
         keyHint: key ? key.slice(-4) : (saved ?? status.keyHint),
         baseUrl: baseUrl?.trim() ? toBaseUrl(baseUrl) : status.baseUrl,
+        customEndpoint: customEndpoint ?? false,
+        models: customEndpoint ? modelIds ?? [] : status.models,
+        modelCatalog: customEndpoint && modelIds?.length === 0 ? fakeModels : null,
         needsRestart: status.claudeRunning,
       });
     },

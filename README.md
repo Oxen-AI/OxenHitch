@@ -1,17 +1,16 @@
 # Oxen Hitch
 
-Run the Claude desktop app on [Oxen.ai](https://oxen.ai). Hitch lives in your menu bar: turn on
-Claude's Developer Mode once, paste your Oxen API key, click Connect, restart Claude. No settings
-files to edit.
+Run the Claude desktop app on [Oxen.ai](https://oxen.ai). Hitch lives in your menu bar: paste your
+Oxen API key, click Connect, restart Claude. No settings files to edit.
 
 **[Download the latest Hitch for Mac](https://github.com/Oxen-AI/OxenHitch/releases/latest)**
 
 - [Before you start](#before-you-start)
 - [Install](#install)
-- [Set up](#set-up), including [bringing over your chats](#5-bring-over-your-chats-optional)
+- [Set up](#set-up), including [bringing over your chats](#4-bring-over-your-chats-optional)
 - [Everyday use](#everyday-use)
 - [Claude Code](#claude-code)
-- [Set up by hand](#set-up-by-hand)
+- [Set up by hand with Developer Mode](#set-up-by-hand-with-developer-mode)
 - [Develop](#develop) · [Release](#release)
 
 ## Before you start
@@ -35,30 +34,16 @@ in the menu bar at the top right of your screen, or by opening Hitch from Applic
 
 ## Set up
 
-### 1. Turn on Developer Mode in Claude
+### 1. Paste your Oxen API key
 
-Do this before you open Hitch. Claude only runs on a gateway like Oxen once its Developer Mode
-is on, and you only need to turn it on once.
-
-1. In Claude, open **Help → Troubleshooting → Enable Developer Mode**.
-
-   <img src="docs/images/claude-enable-developer-mode.png" width="520" alt="Claude's Help menu, with Troubleshooting open and Enable Developer Mode selected">
-
-2. Click **Enable** in the warning. Claude restarts, and a **Developer** menu now sits next to
-   **Window**.
-
-   <img src="docs/images/claude-developer-mode-confirm.png" width="345" alt="Claude's warning about Developer Mode, with Don't Enable and Enable buttons">
-
-### 2. Paste your Oxen API key
-
-Open Hitch, paste your key into the welcome window and click **Connect**. The window stays open
-while you fetch the key from your browser. Hitch checks the key with Oxen before it changes
-anything. If the Oxen command-line tool already saved a key on this
+Paste your key into the welcome window and click **Connect**. The window stays open while you
+fetch the key from your browser. Hitch checks the key
+with Oxen before it changes anything. If the Oxen command-line tool already saved a key on this
 Mac, Hitch finds it and there is nothing to paste.
 
 <img src="docs/images/welcome.png" width="389" alt="Hitch asking for an Oxen API key">
 
-### 3. Restart Claude
+### 2. Restart Claude
 
 Claude reads its settings only when it opens. Click **Restart Claude** and Hitch quits and
 reopens it for you. The first time, macOS asks whether Hitch may control Claude: click **Allow**.
@@ -71,7 +56,7 @@ Gateway**.
 
 <img src="docs/images/claude-continue-with-gateway.png" width="291" alt="Claude asking how you want to use it, with Continue with Gateway as the first choice">
 
-### 4. You're on Oxen
+### 3. You're on Oxen
 
 Claude now runs on Oxen: chat, Cowork and the Code tab all go through your Oxen account. Pick a
 model from Claude's model menu as usual. Hitch's home screen shows whether Claude is running and
@@ -79,7 +64,7 @@ whether Oxen is reachable.
 
 <img src="docs/images/home.png" width="389" alt="Hitch showing Claude running on Oxen">
 
-### 5. Bring over your chats (optional)
+### 4. Bring over your chats (optional)
 
 On Oxen, Claude keeps your conversations on this Mac, so it starts with an empty history. You can
 copy in what you had on claude.ai. Hitch switches this option on when it connects Claude.
@@ -107,8 +92,8 @@ is listed under **Import history** on the same settings page, where **Remove** t
 **Switch back to Anthropic.** Turn off **Run Claude on Oxen** and restart Claude. Claude goes
 back to signing in with Anthropic. Turn it on again to return to Oxen; your key stays saved.
 
-**Choose your models.** **Models** lists the Oxen models that can run as an agent, including
-ones that are not Claude. Leave it on **All models**, or pick the ones you want in Claude's model menu; the
+**Choose your models.** **Models** lists every chat model Oxen offers, including ones that are
+not Claude. Leave it on **All models**, or pick the ones you want in Claude's model menu; the
 first one you pick is the default. The refresh button fetches the latest list from Oxen.
 
 <img src="docs/images/models.png" width="389" alt="Hitch's model list">
@@ -153,21 +138,29 @@ ANTHROPIC_DEFAULT_HAIKU_MODEL=gpt-5-mini claude --model gpt-5-mini
 
 To go back to Anthropic, remove the two variables (`unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN`).
 
-## Set up by hand
+## Set up by hand with Developer Mode
 
 Hitch does this setup for you. This section is for when you can't install Hitch, or want to see
-what Hitch set up: Claude's **Developer** menu has a settings screen for the same thing.
+what Hitch set up: Claude's Developer Mode has a settings screen for the same thing.
 
-1. Turn on Developer Mode, as in [step 1 of Set up](#1-turn-on-developer-mode-in-claude).
-2. Open **Developer → Configure Third-Party Inference…**
+1. In Claude, open **Help → Troubleshooting → Enable Developer Mode**.
+
+   <img src="docs/images/claude-enable-developer-mode.png" width="520" alt="Claude's Help menu, with Troubleshooting open and Enable Developer Mode selected">
+
+2. Click **Enable** in the warning. Claude restarts.
+
+   <img src="docs/images/claude-developer-mode-confirm.png" width="345" alt="Claude's warning about Developer Mode, with Don't Enable and Enable buttons">
+
+3. A **Developer** menu now sits next to **Window**. Open **Developer → Configure Third-Party
+   Inference…**
 
    <img src="docs/images/claude-developer-menu.png" width="287" alt="Claude's Developer menu, with Configure Third-Party Inference">
 
-3. Under **Connection**, choose **Gateway**.
+4. Under **Connection**, choose **Gateway**.
 
    <img src="docs/images/claude-gateway-option.png" width="429" alt="The Connection list in Claude's settings, with Gateway chosen">
 
-4. Fill in the form:
+5. Fill in the form:
 
    | Field | Value |
    |---|---|
@@ -176,8 +169,8 @@ what Hitch set up: Claude's **Developer** menu has a settings screen for the sam
    | Gateway API key | your Oxen API key |
    | Gateway auth scheme | bearer |
 
-5. Click **Test connection**. When it succeeds, click **Apply locally**.
-6. Quit Claude and open it again. When it asks **How do you want to use Claude?**, choose
+6. Click **Test connection**. When it succeeds, click **Apply locally**.
+7. Quit Claude and open it again. When it asks **How do you want to use Claude?**, choose
    **Continue with Gateway**.
 
 Set up this way, Claude's model menu lists only Oxen's Claude models. Hitch also adds the others

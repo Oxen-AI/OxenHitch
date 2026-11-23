@@ -1,4 +1,16 @@
-// The only place the UI talks to the Rust side. Shapes mirror `hitch-core`.
+/**
+ * | Stage | Mechanism | Tag | Ref |
+ * | --- | --- | --- | --- |
+ * | CONTRACT | Define the UI API and JSON shapes | [mandatory] | R1 |
+ * | SELECT | Route calls to Tauri, Python, or browser fake | [mandatory] | R1 |
+ * | ADAPT | Translate bridge calls and status events | [mandatory] | R1 |
+ *
+ * EARS guards: R1 WHEN Python desktop is active, the UI calls only pywebview's API.
+ * R1 IF a desktop bridge is not ready, THEN return a display-safe error.
+ * CLOSED: views do not call native APIs directly.
+ * Preconditions: browser globals identify the active desktop bridge.
+ * Failure modes: bridge methods reject with UI-displayable errors.
+ */
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -18,6 +30,10 @@ export interface Status {
   keyHint: string | null;
   /** Models chosen to show in Claude, default first. Empty means all of Oxen's. */
   models: string[];
+  /** Custom Claude Messages compatible endpoint; Save does not contact it. */
+  customEndpoint?: boolean;
+  modelCatalog?: Model[] | null;
+  relayError?: string | null;
 }
 
 export interface Model {
@@ -41,7 +57,7 @@ export interface Api {
   /** Checks the saved key against the gateway. `null` when there is no key. */
   check(): Promise<Check | null>;
   /** Rejects with a sentence to show the user. */
-  connect(input: { apiKey?: string; baseUrl?: string }): Promise<Status>;
+  connect(input: { apiKey?: string; baseUrl?: string; customEndpoint?: boolean; modelIds?: string[] }): Promise<Status>;
   setRouting(enabled: boolean): Promise<Status>;
   setModels(models: string[]): Promise<Status>;
   remove(): Promise<Status>;
@@ -86,6 +102,80 @@ export const tauriApi: Api = {
 };
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
+
+type PythonBridge = {
+  status(): Promise<Status>;
+  check(): Promise<Check | null>;
+  connect(apiKey?: string, baseUrl?: string, customEndpoint?: boolean, modelIds?: string[]): Promise<Status>;
+  set_routing(enabled: boolean): Promise<Status>;
+  set_models(models: string[]): Promise<Status>;
+  remove(): Promise<Status>;
+  restart_claude(): Promise<Status>;
+  saved_key(host: string): Promise<string | null>;
+  claude_icon(): Promise<string | null>;
+  test_message(): Promise<string>;
+  autostart(): Promise<boolean>;
+  set_autostart(enabled: boolean): Promise<boolean>;
+  open_url(url: string): Promise<void>;
+  resize(height: number): Promise<void>;
+  hide(): Promise<void>;
+  quit(): Promise<void>;
+};
+
+declare global {
+  interface Window {
+    pywebview?: { api: PythonBridge };
+  }
+}
+
+const python = () => {
+  if (!window.pywebview?.api) throw new Error("The Hitch Python bridge is not ready.");
+  return window.pywebview.api;
+};
+
+/** API adapter exposed by the Python pywebview host. */
+export const pythonApi: Api = {
+  status: () => python().status(),
+  check: () => python().check(),
+  connect: ({ apiKey, baseUrl, customEndpoint, modelIds }) => python().connect(apiKey, baseUrl, customEndpoint, modelIds),
+  setRouting: (enabled) => python().set_routing(enabled),
+  setModels: (models) => python().set_models(models),
+  remove: () => python().remove(),
+  restartClaude: () => python().restart_claude(),
+  savedKey: (host) => python().saved_key(host),
+  claudeIcon: () => python().claude_icon(),
+  testMessage: () => python().test_message(),
+  autostart: () => python().autostart(),
+  setAutostart: (enabled) => python().set_autostart(enabled),
+  open: (url) => python().open_url(url),
+  resize: (height) => python().resize(height),
+  hide: () => python().hide(),
+  quit: () => python().quit(),
+  onStatus: (listener) => {
+    const onStatus = (event: Event) => listener((event as CustomEvent<Status>).detail);
+    window.addEventListener("hitch-status", onStatus);
+    return () => window.removeEventListener("hitch-status", onStatus);
+  },
+};
+
+export const isPythonDesktop = () => Boolean(window.pywebview?.api);
+
+/** Wait for the Python host to inject its API before mounting desktop UI.
+ *
+ * Require: callback mounts the application with the Python API.
+ * Guarantee: callback runs once after pywebview exposes its JS API.
+ * Maintain: browser preview selection remains owned by the application entrypoint.
+ * Assert: callers can register before or after pywebviewready without missing readiness.
+ */
+export function whenPythonApiReady(callback: () => void): () => void {
+  if (isPythonDesktop()) {
+    callback();
+    return () => {};
+  }
+
+  window.addEventListener("pywebviewready", callback, { once: true });
+  return () => window.removeEventListener("pywebviewready", callback);
+}
 
 /** Rust commands reject with a plain sentence; anything else gets a generic one. */
 export function messageOf(error: unknown): string {

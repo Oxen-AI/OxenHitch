@@ -1,6 +1,15 @@
 node_modules
 dist
+dist-python
 target
 .DS_Store
 *.log
 src-tauri/gen
+.venv
+.venv312
+.venv312
+.pytest_cache
+build
+build-python
+__pycache__
+.todo

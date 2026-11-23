@@ -30,7 +30,8 @@ export function Models(props: {
   // Keep showing the last list while a refresh is in flight, so the screen doesn't blink.
   const lastOffered = useRef<Model[]>([]);
   if (gateway.state === "ok") lastOffered.current = gateway.models;
-  const offered: Model[] = gateway.state === "ok" || gateway.state === "checking" ? lastOffered.current : [];
+  const offered: Model[] = status.modelCatalog ?? (gateway.state === "ok" || gateway.state === "checking" ? lastOffered.current : []);
+  const provider = status.modelCatalog ? "LiteLLM" : "Oxen";
 
   const [refreshed, setRefreshed] = useState(false);
   const refresh = useAction(async () => {
@@ -78,7 +79,7 @@ export function Models(props: {
           </span>
           <span className="choice-text">
             <span className="row-label">All models</span>
-            <span className="choice-note">Every chat model Oxen offers.</span>
+            <span className="choice-note">{`Every chat model ${provider} offers.`}</span>
           </span>
         </button>
       </div>
@@ -86,8 +87,8 @@ export function Models(props: {
       <div className="section-head">
         <span className="section-title">
           {offered.length > 0
-            ? `${offered.length} ${offered.length === 1 ? "model" : "models"} from Oxen`
-            : "Models from Oxen"}
+            ? `${offered.length} ${offered.length === 1 ? "model" : "models"} from ${provider}`
+            : `Models from ${provider}`}
         </span>
         <button
           type="button"
@@ -105,6 +106,7 @@ export function Models(props: {
           {status.needsRestart ? "Updated. Restart Claude to see the changes." : "Up to date"}
         </p>
       )}
+      {refreshed && gateway.state === "failed" && status.modelCatalog && <Notice>{gateway.message}</Notice>}
 
       {gateway.state === "checking" && all.length === 0 && (
         <p className="empty">
