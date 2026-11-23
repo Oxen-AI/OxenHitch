@@ -30,21 +30,13 @@ model_list:
       supports_vision: true
       max_input_tokens: 131072
 
-  - model_name: party-oracle-vision
-    litellm_params:
-      model: openai/hf.co/Qwen/Qwen3-VL-4B-Instruct-GGUF:Q4_K_M
-      api_base: http://127.0.0.1:11434/v1
-      api_key: ollama
-    model_info:
-      supports_vision: true
-      max_input_tokens: 131072
 ```
 
-`api_key: ollama` is a placeholder for an unauthenticated local Ollama server; use the credential configured on your Ollama host if it requires authentication. Do not replace the existing `party-oracle` route: `party-oracle-vision` is an explicit 4B vision-capable role.
+`api_key: ollama` is a placeholder for an unauthenticated local Ollama server; use the credential configured on your Ollama host if it requires authentication. Keep `qwen3-vl-4b` as a standalone vision model ID; `party-oracle` remains the only Oracle role alias and routes to Qwopus.
 
-After editing the config, restart LiteLLM so it loads the routes. Verify that `GET http://127.0.0.1:4000/v1/models` lists all three names, then click **Models → Refresh models** in Hitch. In Claude Code, select **party-oracle-vision** when sending images; Hitch keeps its stable Claude wire alias and routes it back to this LiteLLM name. `party-oracle` remains the existing text reasoning route.
+After editing the config, restart LiteLLM so it loads the routes. Verify that `GET http://127.0.0.1:4000/v1/models` lists `qwen3-vl-2b`, `qwen3-vl-4b`, and the sole `party-oracle` role, then click **Models → Refresh models** in Hitch. In Claude Code, select **qwen3-vl-4b** for image requests; Hitch routes that standalone model ID through LiteLLM. `party-oracle` remains the Qwopus reasoning role.
 
-The installed Ollama tags report vision capability and a 262144-token native context. LiteLLM advertises a 131072-token input limit here. On 2026-11-22, the running service listed all three aliases at `/v1/models`; three image prompts through `/v1/chat/completions` and one through the Anthropic `/v1/messages` path returned HTTP 200 with non-empty answers from `party-oracle-vision`, and a separate image request to `qwen3-vl-2b` returned HTTP 200 with a non-empty answer through `/v1/messages`. Direct Ollama image probes also produced usable answers from both model sizes. Selecting the route in Claude Code through Hitch remains the final UI acceptance check.
+The installed Ollama tags report vision capability and a 262144-token native context. LiteLLM advertises a 131072-token input limit here. A historical pilot on 2026-11-22 used the temporary alias `party-oracle-vision`; its image probes returned HTTP 200 with non-empty answers. The current catalog exposes that Qwen3-VL 4B backend only as `qwen3-vl-4b`. A separate image request to `qwen3-vl-2b` also returned HTTP 200 with a non-empty answer through `/v1/messages`. Direct Ollama image probes produced usable answers from both model sizes. Selecting the standalone vision model through Hitch remains the final UI acceptance check.
 
 ### Claude Code in Claude Desktop on Windows
 
